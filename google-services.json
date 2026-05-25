@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "927581488486",
+    "project_id": "scimathinx",
+    "storage_bucket": "scimathinx.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:927581488486:android:0fe4d4d3c2c56ac00634a7",
+        "android_client_info": {
+          "package_name": "scimathinx.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBVwdlP-qlpZt2-WwWa3zzdNObozYVKsmE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
