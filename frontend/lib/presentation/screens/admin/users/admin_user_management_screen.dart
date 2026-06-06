@@ -513,25 +513,26 @@ class _AdminUserManagementScreenState extends ConsumerState<AdminUserManagementS
   void _confirmDelete(Map<String, dynamic> user) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: AppTheme.surfaceColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text("Delete User", style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AppTheme.textColor)),
         content: Text("Are you sure you want to delete ${user['name']}? This action cannot be undone.", style: GoogleFonts.inter(color: AppTheme.subtleText)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text("Cancel"),
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(context);
-              final success = await ref.read(apiServiceProvider).deleteUser(user['_id']);
-              if (success) {
+              Navigator.pop(dialogContext);
+              final errorMsg = await ref.read(apiServiceProvider).deleteUser(user['_id']);
+              if (!mounted) return;
+              if (errorMsg == null) {
                 _fetchUsers();
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("User deleted permanently.")));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("User deleted permanently.")));
               } else {
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to delete user.")));
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg)));
               }
             },
             style: ElevatedButton.styleFrom(

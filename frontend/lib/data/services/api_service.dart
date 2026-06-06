@@ -393,7 +393,7 @@ class ApiService {
     }
   }
 
-  Future<bool> deleteUser(String id) async {
+  Future<String?> deleteUser(String id) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
@@ -401,10 +401,19 @@ class ApiService {
         Uri.parse('$baseUrl/users/$id'),
         headers: {'Authorization': 'Bearer $token'},
       );
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        return null; // success
+      } else {
+        try {
+          final data = jsonDecode(response.body);
+          return data['message'] ?? 'Failed to delete user.';
+        } catch (_) {
+          return 'Error ${response.statusCode}: Failed to delete user.';
+        }
+      }
     } catch (e) {
       AppLogger.error('Delete User', e);
-      return false;
+      return e.toString();
     }
   }
 

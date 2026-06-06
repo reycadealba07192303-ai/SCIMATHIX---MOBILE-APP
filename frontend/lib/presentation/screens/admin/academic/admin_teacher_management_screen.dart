@@ -633,8 +633,8 @@ class _AdminTeacherManagementScreenState extends ConsumerState<AdminTeacherManag
     String confirmationText = '';
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (statefulContext, setDialogState) {
           final canDelete = confirmationText == 'DELETE';
           return AlertDialog(
             backgroundColor: AppTheme.surfaceColor,
@@ -676,7 +676,7 @@ class _AdminTeacherManagementScreenState extends ConsumerState<AdminTeacherManag
                         side: BorderSide(color: AppTheme.borderColor),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () => Navigator.pop(dialogContext),
                       child: Text("Cancel",
                           style: GoogleFonts.inter(color: AppTheme.textColor, fontWeight: FontWeight.w600)),
                     ),
@@ -692,16 +692,16 @@ class _AdminTeacherManagementScreenState extends ConsumerState<AdminTeacherManag
                       ),
                       onPressed: canDelete
                           ? () async {
-                              Navigator.pop(context);
+                              Navigator.pop(dialogContext);
                               setState(() => _isLoading = true);
-                              final success = await ref.read(apiServiceProvider).deleteUser(teacher['_id']);
+                              final errorMsg = await ref.read(apiServiceProvider).deleteUser(teacher['_id']);
                               if (!mounted) return;
-                              if (success) {
+                              if (errorMsg == null) {
                                 _fetchTeachers();
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Teacher deleted.")));
+                                ScaffoldMessenger.of(this.context).showSnackBar(const SnackBar(content: Text("Teacher deleted.")));
                               } else {
                                 setState(() => _isLoading = false);
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to delete teacher.")));
+                                ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(errorMsg)));
                               }
                             }
                           : null,
