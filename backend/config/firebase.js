@@ -3,19 +3,32 @@ const fs = require('fs');
 const path = require('path');
 
 // Initialize Firebase Admin SDK
-// You will need to download your service account key from Firebase Console -> Project Settings -> Service Accounts -> Generate new private key
-// and place it in the backend folder as 'firebaseServiceAccount.json'
+// Supports both:
+//   1. A local firebaseServiceAccount.json file (for local dev)
+//   2. A FIREBASE_SERVICE_ACCOUNT env variable containing the JSON string (for Render/production)
 
 const serviceAccountPath = path.join(__dirname, '..', 'firebaseServiceAccount.json');
 
-if (fs.existsSync(serviceAccountPath)) {
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    // Production: Load from environment variable
+    try {
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+        console.log('Firebase Admin initialized from environment variable.');
+    } catch (err) {
+        console.warn('WARNING: Failed to parse FIREBASE_SERVICE_ACCOUNT env variable:', err.message);
+    }
+} else if (fs.existsSync(serviceAccountPath)) {
+    // Local dev: Load from JSON file
     const serviceAccount = require(serviceAccountPath);
     admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
     });
-    console.log('Firebase Admin initialized successfully.');
+    console.log('Firebase Admin initialized from local file.');
 } else {
-    console.warn('WARNING: firebaseServiceAccount.json not found! Firebase Admin is NOT initialized. User deletion in Firebase will not work.');
+    console.warn('WARNING: No Firebase credentials found! Firebase Admin is NOT initialized.');
 }
 
 module.exports = admin;
