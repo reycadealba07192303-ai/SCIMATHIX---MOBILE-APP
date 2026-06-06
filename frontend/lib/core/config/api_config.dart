@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+
 
 /// Backend connection settings for the Flutter app.
 ///
@@ -6,19 +6,13 @@ import 'package:flutter/foundation.dart';
 /// Override at run time, e.g. Android emulator:
 ///   flutter run --dart-define=API_HOST=10.0.2.2
 class ApiConfig {
-  static const String _envHost = String.fromEnvironment(
-    'API_HOST',
-    defaultValue: '192.168.100.4',
+  // Use the Render URL as the default server base URL
+  static const String serverBaseUrl = String.fromEnvironment(
+    'API_URL',
+    defaultValue: 'https://scimathix-mobile-app.onrender.com',
   );
 
-  // Automatically use 'localhost' if running on Flutter Web, otherwise use the IP
-  static String get host => kIsWeb ? 'localhost' : _envHost;
-
-  static const int port = 5000;
-
-  static String get apiBaseUrl => 'http://$host:$port/api';
-
-  static String get serverBaseUrl => 'http://$host:$port';
+  static String get apiBaseUrl => '$serverBaseUrl/api';
 
   static String get uploadsBaseUrl => '$serverBaseUrl/uploads/';
 
