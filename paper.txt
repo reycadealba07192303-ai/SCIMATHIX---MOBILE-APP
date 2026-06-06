@@ -1,0 +1,110 @@
+CHAPTER 1
+
+INTRODUCTION
+
+Background of the Study
+
+Mathematics is an important subject used in many fields such as education, occupation, science, and technology. After learning basic mathematical concepts, students apply formulas, computing, and problem-solving methods to different circumstances in people’s everyday lives. According to research in education, mathematics plays an important role in scientific research because it helps and supports clear and accurate data analysis. In science, mathematics is used to explain motion, forces, and energy in physics. While in chemistry, it helps calculate chemical reactions, concentrations, and measurements. The increasing use of mathematics shows its importance in modern science and in modern technological development. However, some research studies also shows that students are having difficulties in understanding mathematics and affects their ability to solve formulas, mathematics problems, and scientific problems. Therefore, strengthening and enhancing mathematical skills is an essential for effective problem solving in both mathematics and scientific field.
+
+One of the hardest and most demanding subject to study is mathematics. This type of issue affects a lot of junior high school kids, particularly those who learn slowly. Math anxiety, a lack of core knowledge, and even a handicap called dyscalculia are some potential reasons of the issue. Approaching mathematics became more challenging in the past year when COVID-19, commonly known as the Coronavirus, struck and traditional in-person classes were replaced by blended learning.
+
+In this new normal classes, independent learning might improve the difficulties in studying (Sari and Zamroni 2019). He also added that in the year (Mishra, Gupta, and Shree 2020), due to the unavoidable changes brought on by the COVID-19 epidemic, there were significant worries over the education of young people.
+
+This issue has to receive careful consideration, especially in light of the new changes appearing in education. That is why the researchers constructed a study about making an application that can help students in calculating math, going through their peers, and helping them improve.
+
+	The Philippines ranked 76th out of 81 countries in math in the 2022 PISA (Program for International Student Assessment), with an average score of 355 points, significantly lower than the OECD (Organization for Economic Cooperation and Development) average. This study aims not only to help but to also boost junior high school student’s confidence and develop their problem-solving skills. Students can use this app for personal learning, and it can help them stay on track, particularly with other academic tasks,
+
+
+
+
+
+Statement of the Problem
+
+This study entitled “SCIMATHNIX: A Digital Approach to Strengthening Math and Science Skills” aims to enhance the problem-solving and computational skills of junior high school students. 
+
+
+
+Specifically, this study seeks to answer the following questions.
+
+Is the app beneficial in terms of the following questions; 
+
+Is there an impact of the app on junior high school students?
+
+What is the overall effect of the study to be conducted?
+
+Does this app help the junior high school students improve their problem-solving and computational skills?
+
+
+
+Hypothesis
+
+Alternative Hypothesis (H1)
+
+The application is beneficial in terms of the following:
+
+There is an impact of the app on junior high school students.
+
+There is a significant difference on the overall effect of the study to be conducted. 
+
+The app 100% helps the students improve their problem-solving and computational skills.
+
+Null Hypothesis (Ho)
+
+The application is not beneficial in terms of the following:
+
+There is no impact of the app on junior high school students.
+
+There is no significant difference on the overall effect of the study to be conducted. 
+
+The app does not help students improve their problem-solving and computational skills.
+
+
+
+
+
+
+
+Significance of the Study
+
+This study aims to develop an application to helps junior high school students in enhancing or improving their computational and problem-solving skills in mathematics and science. The application provides lesson introductions step-by-step solutions, illustrative examples, and practice activities. These activities consist of equations and problems that the learners can attempt once they feel prepared. In addition, this study also serves future researchers who may build or refine the application to further improve the student learning
+
+
+
+Scope and Limitations 
+
+This study focuses only on the development of a mobile application designed to assist junior high school students in learning mathematics and science concepts. The application is limited to selected topics in mathematics and science and does not cover the entire curriculum. It is accomplished by creating a blueprint showing how the app will look and function and programming the application that teaches and helps students to enhance their skills in solving mathematical equations or problems.
+
+
+
+Definition of terms 
+
+Blueprint - A detailed plan or design framework that outlines the structure, features, and functionality of the mobile application before development begins.
+
+Application - A computer-based software program developed to perform specific educational tasks, particularly in facilitating the learning of Mathematics and Science concepts. 
+
+Algorithm - A finite sequence of well-defined instructions used to solve mathematical problems or perform scientific computations within the application. 
+
+Computation - The process of performing mathematical calculations or data processing using programmed formulas and algorithms. 
+
+Data - Quantitative or qualitative information collected, processed, and stored within the system for analysis and interpretation.
+
+Equation - A mathematical statement that expresses the equality of two expressions, commonly used in solving problems within the application. 
+
+Formula - A symbolic representation of a mathematical or scientific rule used to compute values or determine relationships between variables.
+
+User Interface (UI) - The graphical layout of the application through which users interact with its features, including menus, buttons, and input fields. 
+
+Variable - A symbol representing a quantity that may change or vary within mathematical expressions, equations, or scientific investigations.
+
+Interactive Learning - An educational approach embedded in the application that promotes active engagement through quizzes, activities, simulations, and problem-solving exercises.
+
+
+
+
+
+
+
+
+
+
+
