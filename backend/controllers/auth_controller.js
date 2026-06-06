@@ -70,6 +70,18 @@ exports.loginUser = async (req, res) => {
             });
 
         if (user && (await user.comparePassword(password))) {
+            // Block suspended users
+            if (user.isActive === false) {
+                await createLog(req, {
+                    user: user.name,
+                    role: user.role,
+                    action: 'Login blocked — account suspended',
+                    icon: 'warning',
+                    color: 'orange'
+                });
+                return res.status(403).json({ message: 'Your account has been suspended. Please contact your administrator.' });
+            }
+
             // Log login event
             await createLog(req, {
                 user: user.name,

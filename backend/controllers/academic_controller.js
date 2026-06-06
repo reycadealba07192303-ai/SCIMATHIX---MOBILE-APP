@@ -4,6 +4,7 @@ const Subject = require('../models/Subject');
 const User = require('../models/User');
 const SchoolYear = require('../models/SchoolYear');
 const Notification = require('../models/Notification');
+const admin = require('../config/firebase');
 
 // --- School Year Controllers ---
 
@@ -536,6 +537,16 @@ exports.suspendUser = async (req, res) => {
         user.isActive = !user.isActive;
         await user.save();
 
+        // Also disable/enable in Firebase Auth
+        if (user.firebaseUid && admin.apps && admin.apps.length > 0) {
+            try {
+                await admin.auth().updateUser(user.firebaseUid, { disabled: !user.isActive });
+                console.log(`Firebase Auth: User ${user.firebaseUid} ${user.isActive ? 'enabled' : 'disabled'}`);
+            } catch (fbErr) {
+                console.error('Firebase suspend/unsuspend error:', fbErr.message);
+            }
+        }
+
         const io = req.app.get('io');
         if (io) io.emit('academic_updated', { action: 'user_suspended_toggled', userId: user._id.toString(), isActive: user.isActive });
         
@@ -552,13 +563,38 @@ exports.suspendUser = async (req, res) => {
 exports.deleteUser = async (req, res) => {
     try {
         const { userId } = req.params;
-        const user = await User.findByIdAndDelete(userId);
+        const user = await User.findById(userId);
         if (!user) return res.status(404).json({ message: 'User not found' });
+
+        // Delete from Firebase Auth if firebaseUid exists
+        if (user.firebaseUid && admin.apps && admin.apps.length > 0) {
+            try {
+                await admin.auth().deleteUser(user.firebaseUid);
+                console.log(`Firebase Auth: Deleted user ${user.firebaseUid}`);
+            } catch (fbErr) {
+                console.error('Firebase delete error:', fbErr.message);
+            }
+        }
+
+        // Clean up: remove student from sections
+        if (user.role === 'student') {
+            await Section.updateMany(
+                { students: userId },
+                { $pull: { students: userId } }
+            );
+        }
+
+        // Clean up: remove teacher handled classes references
+        if (user.role === 'teacher') {
+            // No section cleanup needed, handled classes are embedded in user doc
+        }
+
+        await User.findByIdAndDelete(userId);
 
         const io = req.app.get('io');
         if (io) io.emit('academic_updated', { action: 'user_deleted', userId });
 
-        res.json({ message: 'User deleted successfully' });
+        res.json({ message: 'User deleted from Database and Firebase' });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

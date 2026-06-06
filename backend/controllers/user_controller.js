@@ -99,6 +99,15 @@ exports.deleteUser = async (req, res) => {
              console.warn("WARNING: Firebase Admin not initialized. User not deleted from Firebase.");
         }
 
+        // Clean up: remove student from any sections they belong to
+        if (user.role === 'student') {
+            const Section = require('../models/Section');
+            await Section.updateMany(
+                { students: user._id },
+                { $pull: { students: user._id } }
+            );
+        }
+
         await User.findByIdAndDelete(req.params.id);
         res.json({ message: 'User removed from Database and Firebase' });
     } catch (error) {
