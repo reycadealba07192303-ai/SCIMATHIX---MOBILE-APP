@@ -1,7 +1,7 @@
 const Lesson = require('../models/Lesson');
 const Section = require('../models/Section');
 const fs = require('fs');
-const pdf = require('pdf-parse');
+const pdf = require('pdf-parse-fork');
 const { analyzeLesson, generateQuiz } = require('../services/ai_service');
 const Quiz = require('../models/Quiz');
 const Question = require('../models/Question');
