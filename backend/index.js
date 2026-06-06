@@ -85,6 +85,20 @@ server.on('error', (err) => {
     process.exit(1);
 });
 
+const axios = require('axios');
+
+// Keep-alive ping to prevent Render free-tier from sleeping
+// Render spins down free services after 15 minutes of inactivity.
+const RENDER_URL = 'https://scimathix-mobile-app.onrender.com';
+setInterval(async () => {
+    try {
+        const res = await axios.get(RENDER_URL);
+        console.log(`Keep-alive ping sent to ${RENDER_URL} - Status: ${res.status}`);
+    } catch (err) {
+        console.error('Keep-alive ping failed:', err.message);
+    }
+}, 14 * 60 * 1000); // Ping every 14 minutes
+
 mongoose.connect(MONGO_URI)
     .then(() => {
         console.log('Connected to MongoDB');
