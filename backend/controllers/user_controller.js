@@ -86,17 +86,23 @@ exports.deleteUser = async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        // Delete from Firebase Auth if firebaseUid exists and admin is initialized
-        if (user.firebaseUid && admin.apps.length > 0) {
-            try {
-                await admin.auth().deleteUser(user.firebaseUid);
-                console.log(`Successfully deleted user from Firebase Auth: ${user.firebaseUid}`);
-            } catch (firebaseError) {
-                console.error("Error deleting user from Firebase Auth:", firebaseError);
-                // Continue to delete from MongoDB even if Firebase fails
+        // Delete from Firebase Auth if firebaseUid exists
+        if (user.firebaseUid) {
+            if (admin.apps.length > 0) {
+                try {
+                    await admin.auth().deleteUser(user.firebaseUid);
+                    console.log(`Successfully deleted user from Firebase Auth: ${user.firebaseUid}`);
+                } catch (firebaseError) {
+                    console.error("Error deleting user from Firebase Auth:", firebaseError);
+                    // If the user is already gone from Firebase, it's fine. Otherwise, abort.
+                    if (firebaseError.code !== 'auth/user-not-found') {
+                        return res.status(500).json({ message: 'Failed to delete from Firebase: ' + firebaseError.message });
+                    }
+                }
+            } else {
+                console.warn("WARNING: Firebase Admin not initialized. Cannot delete user from Firebase.");
+                return res.status(500).json({ message: 'Firebase Admin not initialized on server. Deletion aborted.' });
             }
-        } else if (user.firebaseUid && admin.apps.length === 0) {
-             console.warn("WARNING: Firebase Admin not initialized. User not deleted from Firebase.");
         }
 
         // Clean up: remove student from any sections they belong to

@@ -538,12 +538,18 @@ exports.suspendUser = async (req, res) => {
         await user.save();
 
         // Also disable/enable in Firebase Auth
-        if (user.firebaseUid && admin.apps && admin.apps.length > 0) {
-            try {
-                await admin.auth().updateUser(user.firebaseUid, { disabled: !user.isActive });
-                console.log(`Firebase Auth: User ${user.firebaseUid} ${user.isActive ? 'enabled' : 'disabled'}`);
-            } catch (fbErr) {
-                console.error('Firebase suspend/unsuspend error:', fbErr.message);
+        if (user.firebaseUid) {
+            if (admin.apps && admin.apps.length > 0) {
+                try {
+                    await admin.auth().updateUser(user.firebaseUid, { disabled: !user.isActive });
+                    console.log(`Firebase Auth: User ${user.firebaseUid} ${user.isActive ? 'enabled' : 'disabled'}`);
+                } catch (fbErr) {
+                    console.error('Firebase suspend/unsuspend error:', fbErr.message);
+                    return res.status(500).json({ message: 'Failed to update status in Firebase: ' + fbErr.message });
+                }
+            } else {
+                console.warn("WARNING: Firebase Admin not initialized. Cannot update Firebase.");
+                return res.status(500).json({ message: 'Firebase Admin not initialized on server. Status update aborted.' });
             }
         }
 
@@ -567,12 +573,20 @@ exports.deleteUser = async (req, res) => {
         if (!user) return res.status(404).json({ message: 'User not found' });
 
         // Delete from Firebase Auth if firebaseUid exists
-        if (user.firebaseUid && admin.apps && admin.apps.length > 0) {
-            try {
-                await admin.auth().deleteUser(user.firebaseUid);
-                console.log(`Firebase Auth: Deleted user ${user.firebaseUid}`);
-            } catch (fbErr) {
-                console.error('Firebase delete error:', fbErr.message);
+        if (user.firebaseUid) {
+            if (admin.apps && admin.apps.length > 0) {
+                try {
+                    await admin.auth().deleteUser(user.firebaseUid);
+                    console.log(`Firebase Auth: Deleted user ${user.firebaseUid}`);
+                } catch (fbErr) {
+                    console.error('Firebase delete error:', fbErr.message);
+                    if (fbErr.code !== 'auth/user-not-found') {
+                        return res.status(500).json({ message: 'Failed to delete from Firebase: ' + fbErr.message });
+                    }
+                }
+            } else {
+                console.warn("WARNING: Firebase Admin not initialized. Cannot delete user from Firebase.");
+                return res.status(500).json({ message: 'Firebase Admin not initialized on server. Deletion aborted.' });
             }
         }
 
