@@ -39,6 +39,15 @@ class _QuizResultsScreenState extends State<QuizResultsScreen> {
   }
 
   Future<void> _fetchRecommendations() async {
+    final localRecommendations = _buildLocalRecommendations();
+    if (localRecommendations.isNotEmpty) {
+      setState(() {
+        _weakTopics = localRecommendations;
+        _loadingRecommendations = false;
+      });
+      return;
+    }
+
     try {
       final api = ApiService();
       final topics = await api.getWeakTopics();
@@ -55,6 +64,28 @@ class _QuizResultsScreenState extends State<QuizResultsScreen> {
         });
       }
     }
+  }
+
+  List<Map<String, dynamic>> _buildLocalRecommendations() {
+    final results = widget.results ?? [];
+    final wrongAnswers = results.where((r) => r['isCorrect'] == false).toList();
+    if (wrongAnswers.isEmpty) return [];
+
+    return wrongAnswers.take(3).map<Map<String, dynamic>>((r) {
+      final questionText = (r['questionText'] ?? 'This question').toString();
+      final explanation = (r['explanation'] ?? '').toString();
+      final shortQuestion = questionText.length > 56
+          ? '${questionText.substring(0, 56)}...'
+          : questionText;
+
+      return {
+        'topic': shortQuestion,
+        'score': 0,
+        'subtitle': explanation.isNotEmpty
+            ? explanation
+            : 'Compare your answer with the correct solution and try a similar easy Grade 9 problem.',
+      };
+    }).toList();
   }
 
   @override
@@ -144,7 +175,7 @@ class _QuizResultsScreenState extends State<QuizResultsScreen> {
                   SizedBox(
                     width: double.infinity, height: 54,
                     child: ElevatedButton(
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => QuizReviewScreen(quizTitle: widget.quizTitle, themeColor: widget.themeColor))),
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => QuizReviewScreen(quizTitle: widget.quizTitle, themeColor: widget.themeColor, results: widget.results ?? const []))),
                       style: ElevatedButton.styleFrom(backgroundColor: widget.themeColor, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
                       child: Text("Review Answers", style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600)),
                     ),
@@ -154,7 +185,7 @@ class _QuizResultsScreenState extends State<QuizResultsScreen> {
                     width: double.infinity, height: 54,
                     child: OutlinedButton(
                       onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
-                      style: OutlinedButton.styleFrom(foregroundColor: AppTheme.textColor, side: const BorderSide(color: AppTheme.borderColor), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                      style: OutlinedButton.styleFrom(foregroundColor: AppTheme.textColor, side: BorderSide(color: AppTheme.borderColor), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                       child: Text("Back to Home", style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600)),
                     ),
                   ),
@@ -271,7 +302,7 @@ class _QuizResultsScreenState extends State<QuizResultsScreen> {
                 icon: CupertinoIcons.exclamationmark_triangle,
                 color: topicScore < 50 ? Colors.redAccent : AppTheme.accentColor,
                 title: topicName,
-                subtitle: "Your score: $topicScore% — Review this topic to improve.",
+                subtitle: topic['subtitle'] ?? "Your score: $topicScore% - Review this topic to improve.",
               );
             }),
           ],

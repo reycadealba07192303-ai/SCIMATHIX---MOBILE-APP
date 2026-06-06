@@ -144,7 +144,7 @@ class AiAssistantScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(CupertinoIcons.chevron_right, color: AppTheme.borderColor, size: 16),
+              Icon(CupertinoIcons.chevron_right, color: AppTheme.borderColor, size: 16),
             ],
           ),
         ),

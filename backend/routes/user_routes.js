@@ -5,8 +5,18 @@ const {
     getAllUsers,
     createUser,
     updateUser,
-    deleteUser
+    deleteUser,
+    updateProfileImage,
+    updateOwnProfile
 } = require('../controllers/user_controller');
+
+const upload = require('../middleware/upload_middleware');
+
+router.route('/profile')
+    .put(protect, updateOwnProfile);
+
+router.route('/profile-image')
+    .put(protect, upload.single('image'), updateProfileImage);
 
 router.route('/')
     .get(protect, adminOnly, getAllUsers)

@@ -179,7 +179,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           padding: EdgeInsets.zero,
                           alignment: Alignment.centerLeft,
                           onPressed: () => Navigator.pop(context),
-                          icon: const Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor, size: 24),
+                          icon: Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor, size: 24),
                         ),
                       ),
                       Container(

@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
 import 'package:animate_do/animate_do.dart';
-import 'package:scimathix/data/services/api_service.dart';
 import 'package:scimathix/data/services/socket_service.dart';
 import 'package:scimathix/logic/auth_provider.dart';
 
@@ -18,6 +17,7 @@ class AdminUserLogsScreen extends ConsumerStatefulWidget {
 class _AdminUserLogsScreenState extends ConsumerState<AdminUserLogsScreen> {
   List<dynamic> _logs = [];
   bool _isLoading = true;
+  late final SocketService _socketService;
 
   @override
   void initState() {
@@ -27,10 +27,10 @@ class _AdminUserLogsScreenState extends ConsumerState<AdminUserLogsScreen> {
   }
 
   void _setupSocket() {
-    final socketService = ref.read(socketServiceProvider);
-    socketService.initSocket();
-    
-    socketService.on('new_log', (data) {
+    _socketService = ref.read(socketServiceProvider);
+    _socketService.initSocket();
+
+    _socketService.on('new_log', (data) {
       if (mounted) {
         setState(() {
           _logs.insert(0, data);
@@ -41,9 +41,8 @@ class _AdminUserLogsScreenState extends ConsumerState<AdminUserLogsScreen> {
 
   @override
   void dispose() {
-    final socketService = ref.read(socketServiceProvider);
-    socketService.off('new_log');
-    socketService.disconnect();
+    _socketService.off('new_log');
+    _socketService.disconnect();
     super.dispose();
   }
 
@@ -99,7 +98,7 @@ class _AdminUserLogsScreenState extends ConsumerState<AdminUserLogsScreen> {
       appBar: AppBar(
         backgroundColor: AppTheme.backgroundColor,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppTheme.textColor),
+        iconTheme: IconThemeData(color: AppTheme.textColor),
         title: Text(
           "User Logs",
           style: GoogleFonts.inter(

@@ -19,6 +19,10 @@ const userSchema = new mongoose.Schema({
         lowercase: true,
         trim: true
     },
+    profilePicture: {
+        type: String,
+        default: null
+    },
     password: {
         type: String,
         required: true
@@ -68,10 +72,6 @@ const userSchema = new mongoose.Schema({
     isActive: {
         type: Boolean,
         default: true
-    },
-    profilePicture: {
-        type: String,
-        default: ''
     },
     createdAt: {
         type: Date,

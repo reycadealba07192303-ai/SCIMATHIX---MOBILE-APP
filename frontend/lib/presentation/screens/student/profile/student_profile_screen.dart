@@ -1,19 +1,18 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:scimathix/core/config/api_config.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
 import 'package:scimathix/logic/auth_provider.dart';
-import 'package:scimathix/presentation/screens/student/gamification/leaderboard_screen.dart';
-import 'package:scimathix/presentation/screens/student/gamification/achievements_screen.dart';
+import 'package:scimathix/presentation/screens/student/leaderboard/student_leaderboard_screen.dart';
 import 'package:scimathix/presentation/screens/student/profile/settings_screen.dart';
-import 'package:scimathix/presentation/screens/student/profile/learning_statistics_screen.dart';
-import 'package:scimathix/presentation/screens/student/profile/activity_history_screen.dart';
+import 'package:scimathix/presentation/screens/student/profile/student_stats_screen.dart';
 import 'package:scimathix/presentation/screens/student/profile/notifications_screen.dart';
 import 'package:scimathix/presentation/screens/student/profile/privacy_screen.dart';
+import 'package:scimathix/logic/theme_provider.dart';
 class StudentProfileScreen extends ConsumerStatefulWidget {
   const StudentProfileScreen({super.key});
 
@@ -61,15 +60,42 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
 
     setState(() => _isUploading = true);
 
-    final file = File(pickedFile.path);
-    final api = ref.read(apiServiceProvider);
-    final filename = await api.uploadProfilePicture(file);
+    try {
+      final fileBytes = await pickedFile.readAsBytes();
+      final api = ref.read(apiServiceProvider);
+      
+      final response = await api.uploadProfileImage(
+        fileName: pickedFile.name,
+        fileBytes: fileBytes,
+        filePath: pickedFile.path,
+      );
 
-    if (filename != null) {
-      ref.read(authProvider.notifier).updateProfilePictureLocally(filename);
+      if (response != null) {
+        final newProfilePic = response['profilePicture'];
+        if (newProfilePic != null) {
+          ref.read(authProvider.notifier).updateProfilePictureLocally(newProfilePic);
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Profile image updated successfully!')),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to update profile image.')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
     }
-
-    if (mounted) setState(() => _isUploading = false);
   }
 
   Widget _buildSourceTile(BuildContext ctx, IconData icon, String label, ImageSource source) {
@@ -95,8 +121,8 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(themeModeProvider); // Force instant rebuild on theme change
     final user = ref.watch(authProvider).user;
-    final baseUrl = 'http://10.185.199.230:5000/uploads/';
     final hasPicture = user?.profilePicture != null && user!.profilePicture!.isNotEmpty;
 
     return Scaffold(
@@ -136,9 +162,9 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                             ? Center(child: CircularProgressIndicator(color: AppTheme.primaryColor, strokeWidth: 2))
                             : hasPicture
                                 ? Image.network(
-                                    '$baseUrl${user!.profilePicture}',
+                                    ApiConfig.imageUrl(user.profilePicture),
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => _buildInitialAvatar(user?.name),
+                                    errorBuilder: (_, __, ___) => _buildInitialAvatar(user.name),
                                   )
                                 : _buildInitialAvatar(user?.name),
                       ),
@@ -171,22 +197,30 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: AppTheme.borderColor),
                 ),
-                child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-                  _buildMiniStat("${user?.xp ?? 0}", "XP"),
-                  Container(width: 1, height: 30, color: AppTheme.borderColor),
-                  _buildMiniStat("5", "Level"),
-                  Container(width: 1, height: 30, color: AppTheme.borderColor),
-                  _buildMiniStat("7", "Streak"),
-                ]),
+                child: Builder(
+                  builder: (context) {
+                    final int xp = user?.xp ?? 0;
+                    const int xpPerLevel = 200;
+                    final int level = xp <= 0 ? 1 : (xp ~/ xpPerLevel) + 1;
+                    
+                    return Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                      _buildMiniStat("$xp", "XP"),
+                      Container(width: 1, height: 30, color: AppTheme.borderColor),
+                      _buildMiniStat("$level", "Level"),
+                      Container(width: 1, height: 30, color: AppTheme.borderColor),
+                      _buildMiniStat("0", "Streak"), // Setting to 0 as placeholder for now
+                    ]);
+                  }
+                ),
               ),
             ]),
           ),
           const SizedBox(height: 32),
           _buildMenuSection("Progress", [
-            _buildMenuItem(CupertinoIcons.chart_bar, "Learning Statistics", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LearningStatisticsScreen()))),
-            _buildMenuItem(CupertinoIcons.time, "Activity History", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActivityHistoryScreen()))),
-            _buildMenuItem(CupertinoIcons.rosette, "Achievements", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AchievementsScreen()))),
-            _buildMenuItem(CupertinoIcons.chart_bar_alt_fill, "Leaderboard", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LeaderboardScreen()))),
+            _buildMenuItem(CupertinoIcons.chart_bar, "Learning Statistics", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentStatsScreen(initialTab: 0)))),
+            _buildMenuItem(CupertinoIcons.time, "Activity History", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentStatsScreen(initialTab: 1)))),
+            _buildMenuItem(CupertinoIcons.rosette, "Achievements", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentStatsScreen(initialTab: 2)))),
+            _buildMenuItem(CupertinoIcons.chart_bar_alt_fill, "Leaderboard", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentLeaderboardScreen()))),
           ]),
           const SizedBox(height: 24),
           _buildMenuSection("Settings", [
@@ -252,12 +286,12 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppTheme.borderColor, width: 0.5))),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppTheme.borderColor, width: 0.5))),
         child: Row(children: [
           Icon(icon, color: AppTheme.subtleText, size: 20),
           const SizedBox(width: 14),
           Expanded(child: Text(title, style: GoogleFonts.inter(color: AppTheme.textColor, fontWeight: FontWeight.w500, fontSize: 15))),
-          const Icon(CupertinoIcons.chevron_right, color: AppTheme.borderColor, size: 16),
+          Icon(CupertinoIcons.chevron_right, color: AppTheme.borderColor, size: 16),
         ]),
       ),
     );

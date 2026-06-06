@@ -74,7 +74,6 @@ class _ManageClassesTab extends ConsumerStatefulWidget {
 }
 
 class _ManageClassesTabState extends ConsumerState<_ManageClassesTab> {
-  final _levelController = TextEditingController();
   final _sectionController = TextEditingController();
   final _subjectNameController = TextEditingController();
   final _subjectCodeController = TextEditingController();
@@ -89,7 +88,14 @@ class _ManageClassesTabState extends ConsumerState<_ManageClassesTab> {
   }
 
   Future<void> _loadLevels() async {
-    // Placeholder for loading levels if implemented in api_service
+    final levels = await ref.read(apiServiceProvider).getLevels();
+    if (!mounted) return;
+    setState(() {
+      _levels = levels;
+      if (_levels.isNotEmpty && _selectedLevelId == null) {
+        _selectedLevelId = _levels.first['_id'] as String?;
+      }
+    });
   }
 
   Future<void> _createSection() async {
@@ -103,11 +109,19 @@ class _ManageClassesTabState extends ConsumerState<_ManageClassesTab> {
 
   Future<void> _createSubject() async {
     if (_subjectNameController.text.isEmpty || _subjectCodeController.text.isEmpty) return;
-    final success = await ref.read(apiServiceProvider).createSubject(_subjectNameController.text, _subjectCodeController.text);
-    if (success) {
+    try {
+      await ref.read(apiServiceProvider).createSubject(
+        _subjectNameController.text,
+        _subjectCodeController.text,
+        'General',
+      );
       _subjectNameController.clear();
       _subjectCodeController.clear();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Subject created')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
     }
   }
 
@@ -120,7 +134,21 @@ class _ManageClassesTabState extends ConsumerState<_ManageClassesTab> {
           "Create Section",
           Column(
             children: [
-              // For simplicity, assuming level selection exists, we use a placeholder or dropdown
+              if (_levels.isEmpty)
+                Text('No levels yet. Create a level in Academic Structure first.', style: GoogleFonts.inter(color: AppTheme.subtleText, fontSize: 13))
+              else
+                DropdownButtonFormField<String>(
+                  value: _selectedLevelId,
+                  decoration: const InputDecoration(labelText: 'Grade / Level', border: OutlineInputBorder()),
+                  items: _levels.map((level) {
+                    return DropdownMenuItem<String>(
+                      value: level['_id'] as String,
+                      child: Text(level['name']?.toString() ?? 'Level'),
+                    );
+                  }).toList(),
+                  onChanged: (value) => setState(() => _selectedLevelId = value),
+                ),
+              const SizedBox(height: 16),
               TextField(
                 controller: _sectionController,
                 decoration: const InputDecoration(labelText: "Section Name (e.g. Section A)", border: OutlineInputBorder()),

@@ -210,7 +210,7 @@ class AdminSystemMonitoringScreen extends StatelessWidget {
   Widget _buildLogItem(String message, String time, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppTheme.borderColor, width: 0.5)),
       ),
       child: Row(

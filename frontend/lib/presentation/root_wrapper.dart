@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scimathix/logic/auth_provider.dart';
-import 'package:scimathix/core/theme/app_theme.dart';
-import 'package:scimathix/presentation/screens/auth/splash_screen.dart';
 import 'package:scimathix/presentation/screens/student/student_dashboard.dart';
 import 'package:scimathix/presentation/screens/teacher/teacher_dashboard.dart';
 import 'package:scimathix/presentation/screens/admin/admin_dashboard.dart';

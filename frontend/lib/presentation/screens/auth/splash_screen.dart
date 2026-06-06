@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
 import 'package:scimathix/presentation/screens/auth/onboarding_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -15,19 +17,36 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const OnboardingScreen()),
-        );
-      }
-    });
+    _navigateToNextScreen();
+  }
+
+  Future<void> _navigateToNextScreen() async {
+    await Future.delayed(const Duration(seconds: 3));
+    if (!mounted) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
+    final token = prefs.getString('token');
+
+    // If logged in, OR has seen onboarding, go to root.
+    if (token != null || hasSeenOnboarding) {
+      Navigator.of(context).pushReplacementNamed('/root');
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = isDark ? AppTheme.darkText : AppTheme.textColor;
+    final subtleTextColor = isDark ? AppTheme.darkSubtleText : AppTheme.subtleText;
+
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -41,7 +60,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Icon(
-                  Icons.science_outlined,
+                  FluentIcons.beaker_24_filled,
                   size: 64,
                   color: AppTheme.primaryColor,
                 ),
@@ -57,7 +76,7 @@ class _SplashScreenState extends State<SplashScreen> {
                     style: GoogleFonts.inter(
                       fontSize: 36,
                       fontWeight: FontWeight.w800,
-                      color: AppTheme.textColor,
+                      color: textColor,
                       letterSpacing: -1,
                     ),
                   ),
@@ -66,7 +85,7 @@ class _SplashScreenState extends State<SplashScreen> {
                     'AI Learning Platform',
                     style: GoogleFonts.inter(
                       fontSize: 16,
-                      color: AppTheme.subtleText,
+                      color: subtleTextColor,
                       fontWeight: FontWeight.w500,
                     ),
                   ),

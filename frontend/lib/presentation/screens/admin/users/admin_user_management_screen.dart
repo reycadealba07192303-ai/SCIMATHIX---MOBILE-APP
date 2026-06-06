@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
 import 'package:scimathix/logic/auth_provider.dart';
 import 'package:scimathix/presentation/screens/admin/users/admin_add_user_screen.dart';
+import 'package:scimathix/core/utils/app_logger.dart';
 
 class AdminUserManagementScreen extends ConsumerStatefulWidget {
   const AdminUserManagementScreen({super.key});
@@ -18,6 +19,7 @@ class _AdminUserManagementScreenState extends ConsumerState<AdminUserManagementS
   List<dynamic> _users = [];
   bool _isLoading = true;
   String _selectedFilter = 'All Users';
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -48,53 +50,326 @@ class _AdminUserManagementScreenState extends ConsumerState<AdminUserManagementS
         });
       }
     } catch (e) {
-      print('Fetch Users Error: $e');
+      AppLogger.error('Fetch Users', e);
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  List<dynamic> get _filteredUsers {
+    if (_searchQuery.isEmpty) return _users;
+    return _users.where((u) {
+      final name = (u['name'] ?? '').toString().toLowerCase();
+      final email = (u['email'] ?? '').toString().toLowerCase();
+      return name.contains(_searchQuery.toLowerCase()) || email.contains(_searchQuery.toLowerCase());
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final users = _filteredUsers;
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
-      appBar: AppBar(
-        backgroundColor: AppTheme.backgroundColor,
-        elevation: 0,
-        title: Text(
-          "User Management",
-          style: GoogleFonts.inter(
-            color: AppTheme.textColor,
-            fontWeight: FontWeight.w600,
-            fontSize: 18,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: Column(
-        children: [
-          _buildRoleTabs(),
-          Expanded(
-            child: _isLoading 
-              ? const Center(child: CircularProgressIndicator())
-              : RefreshIndicator(
-                  onRefresh: _fetchUsers,
-                  child: _users.isEmpty 
-                    ? _buildEmptyState()
-                    : SingleChildScrollView(
-                        padding: const EdgeInsets.all(24),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: _buildDataTable(),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildAppBar(),
+            _buildSearchBar(),
+            _buildRoleTabs(),
+            _buildUserCount(users.length),
+            Expanded(
+              child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
+                : RefreshIndicator(
+                    onRefresh: _fetchUsers,
+                    color: AppTheme.primaryColor,
+                    child: users.isEmpty
+                      ? _buildEmptyState()
+                      : ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                          itemCount: users.length,
+                          itemBuilder: (context, index) {
+                            return FadeInUp(
+                              delay: Duration(milliseconds: index < 10 ? index * 60 : 0),
+                              child: _buildUserCard(users[index]),
+                            );
+                          },
                         ),
-                      ),
-                ),
+                  ),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddUserDialog(),
+        backgroundColor: AppTheme.primaryColor,
+        icon: const Icon(CupertinoIcons.person_add, color: Colors.white, size: 20),
+        label: Text("Add User", style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+
+  Widget _buildAppBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 12, 0),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceColor,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppTheme.borderColor),
+              ),
+              child: Icon(CupertinoIcons.back, color: AppTheme.textColor, size: 18),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              "User Management",
+              style: GoogleFonts.inter(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textColor,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: () {
+              setState(() => _isLoading = true);
+              _fetchUsers();
+            },
+            icon: Icon(CupertinoIcons.arrow_clockwise, color: AppTheme.subtleText, size: 20),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddUserDialog(),
-        backgroundColor: AppTheme.primaryColor,
-        child: const Icon(CupertinoIcons.person_add, color: Colors.white),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceColor,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppTheme.borderColor),
+        ),
+        child: TextField(
+          onChanged: (v) => setState(() => _searchQuery = v),
+          style: GoogleFonts.inter(fontSize: 14, color: AppTheme.textColor),
+          decoration: InputDecoration(
+            hintText: "Search by name or email...",
+            hintStyle: GoogleFonts.inter(fontSize: 14, color: AppTheme.subtleText),
+            prefixIcon: Icon(CupertinoIcons.search, color: AppTheme.subtleText, size: 18),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoleTabs() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+      child: Row(
+        children: [
+          _buildTab("All Users", CupertinoIcons.person_2),
+          const SizedBox(width: 8),
+          _buildTab("Teachers", CupertinoIcons.briefcase),
+          const SizedBox(width: 8),
+          _buildTab("Students", CupertinoIcons.book),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTab(String label, IconData icon) {
+    bool isActive = _selectedFilter == label;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _selectedFilter = label);
+          _fetchUsers();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isActive ? AppTheme.primaryColor : AppTheme.surfaceColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isActive ? AppTheme.primaryColor : AppTheme.borderColor,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 14, color: isActive ? Colors.white : AppTheme.subtleText),
+              const SizedBox(width: 6),
+              Text(
+                label.replaceAll('All ', ''),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isActive ? Colors.white : AppTheme.subtleText,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserCount(int count) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+      child: Row(
+        children: [
+          Text(
+            "$count user${count != 1 ? 's' : ''} found",
+            style: GoogleFonts.inter(fontSize: 12, color: AppTheme.subtleText, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserCard(dynamic user) {
+    String role = user['role'] ?? 'student';
+    bool isTeacher = role.toLowerCase() == "teacher";
+    String name = user['name'] ?? "Unknown";
+    String email = user['email'] ?? "No email";
+    bool isSuspended = !(user['isActive'] ?? true);
+    Color roleColor = isTeacher ? AppTheme.secondaryColor : AppTheme.primaryColor;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isSuspended ? Colors.orange.withOpacity(0.3) : AppTheme.borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _showUserOptions(user),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // Avatar
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        roleColor.withOpacity(0.15),
+                        roleColor.withOpacity(0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: roleColor.withOpacity(0.2)),
+                  ),
+                  child: Center(
+                    child: Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : "?",
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w700,
+                        color: roleColor,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                // Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              name,
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                                color: AppTheme.textColor,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (isSuspended) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                "Suspended",
+                                style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.orange),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        email,
+                        style: GoogleFonts.inter(fontSize: 12, color: AppTheme.subtleText),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // Role badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: roleColor.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: roleColor.withOpacity(0.15)),
+                  ),
+                  child: Text(
+                    role[0].toUpperCase() + role.substring(1),
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: roleColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(CupertinoIcons.chevron_right, color: AppTheme.borderColor, size: 14),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -104,172 +379,41 @@ class _AdminUserManagementScreenState extends ConsumerState<AdminUserManagementS
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(CupertinoIcons.person_2, size: 64, color: AppTheme.subtleText.withOpacity(0.5)),
-          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceColor,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(CupertinoIcons.person_2, size: 48, color: AppTheme.subtleText.withOpacity(0.4)),
+          ),
+          const SizedBox(height: 20),
           Text(
-            "No users found in this category",
-            style: GoogleFonts.inter(color: AppTheme.subtleText),
+            "No users found",
+            style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: AppTheme.textColor),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            "Try changing your filter or search query",
+            style: GoogleFonts.inter(fontSize: 13, color: AppTheme.subtleText),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildRoleTabs() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: Row(
-        children: [
-          _buildTab("All Users"),
-          _buildTab("Teachers"),
-          _buildTab("Students"),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTab(String label) {
-    bool isActive = _selectedFilter == label;
-    return GestureDetector(
-      onTap: () {
-        setState(() => _selectedFilter = label);
-        _fetchUsers();
-      },
-      child: Container(
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? AppTheme.primaryColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isActive ? AppTheme.primaryColor : AppTheme.borderColor,
-          ),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: isActive ? Colors.white : AppTheme.subtleText,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDataTable() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: DataTable(
-          headingRowColor: MaterialStateProperty.all(AppTheme.primaryColor.withOpacity(0.05)),
-          dataRowHeight: 65,
-          headingTextStyle: GoogleFonts.inter(
-            fontWeight: FontWeight.w700,
-            color: AppTheme.textColor,
-            fontSize: 13,
-          ),
-          columns: const [
-            DataColumn(label: Text("Name")),
-            DataColumn(label: Text("Email")),
-            DataColumn(label: Text("Role")),
-            DataColumn(label: Text("Actions")),
-          ],
-          rows: List.generate(_users.length, (index) {
-            final user = _users[index];
-            String role = user['role'] ?? 'student';
-            bool isTeacher = role.toLowerCase() == "teacher";
-            String name = user['name'] ?? "Unknown";
-            String email = user['email'] ?? "No email";
-            
-            return DataRow(
-              cells: [
-                DataCell(
-                  Row(
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: isTeacher ? AppTheme.secondaryColor.withOpacity(0.1) : AppTheme.primaryColor.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : "?",
-                            style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w700,
-                              color: isTeacher ? AppTheme.secondaryColor : AppTheme.primaryColor,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        name,
-                        style: GoogleFonts.inter(
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                DataCell(Text(email, style: GoogleFonts.inter(color: AppTheme.subtleText))),
-                DataCell(
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isTeacher ? AppTheme.secondaryColor.withOpacity(0.1) : AppTheme.primaryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      role[0].toUpperCase() + role.substring(1),
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isTeacher ? AppTheme.secondaryColor : AppTheme.primaryColor,
-                      ),
-                    ),
-                  ),
-                ),
-                DataCell(
-                  IconButton(
-                    icon: const Icon(CupertinoIcons.ellipsis_vertical, color: AppTheme.subtleText, size: 18),
-                    onPressed: () => _showUserOptions(user),
-                  ),
-                ),
-              ],
-            );
-          }),
-        ),
       ),
     );
   }
 
   void _showUserOptions(Map<String, dynamic> user) {
     bool isSuspended = !(user['isActive'] ?? true);
+    String role = user['role'] ?? 'student';
+    bool isTeacher = role.toLowerCase() == "teacher";
+    Color roleColor = isTeacher ? AppTheme.secondaryColor : AppTheme.primaryColor;
     
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppTheme.backgroundColor,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
@@ -285,14 +429,54 @@ class _AdminUserManagementScreenState extends ConsumerState<AdminUserManagementS
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            Text(
-              user['name'] ?? "User",
-              style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppTheme.textColor),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              user['email'] ?? "",
-              style: GoogleFonts.inter(fontSize: 13, color: AppTheme.subtleText),
+            // User info header
+            Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [roleColor.withOpacity(0.15), roleColor.withOpacity(0.05)],
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      (user['name'] ?? "?")[0].toUpperCase(),
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: roleColor, fontSize: 20),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user['name'] ?? "User",
+                        style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppTheme.textColor),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        user['email'] ?? "",
+                        style: GoogleFonts.inter(fontSize: 13, color: AppTheme.subtleText),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: roleColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    role[0].toUpperCase() + role.substring(1),
+                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: roleColor),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             _buildActionSheetButton(
@@ -392,7 +576,7 @@ class _AdminUserManagementScreenState extends ConsumerState<AdminUserManagementS
               ),
             ),
             const Spacer(),
-            const Icon(CupertinoIcons.chevron_right, color: AppTheme.subtleText, size: 16),
+            Icon(CupertinoIcons.chevron_right, color: AppTheme.subtleText, size: 16),
           ],
         ),
       ),

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
 import 'package:scimathix/logic/auth_provider.dart';
+import 'package:scimathix/logic/theme_provider.dart';
+import 'package:scimathix/logic/admin_navigation_provider.dart';
 import 'package:scimathix/presentation/screens/admin/dashboard/admin_home_view.dart';
 import 'package:scimathix/presentation/screens/admin/users/admin_user_management_screen.dart';
 import 'package:scimathix/presentation/screens/admin/reports/admin_reports_screen.dart';
@@ -16,38 +18,44 @@ class AdminDashboard extends ConsumerStatefulWidget {
 }
 
 class _AdminDashboardState extends ConsumerState<AdminDashboard> {
-  int _currentIndex = 0;
-
   @override
   Widget build(BuildContext context) {
+    ref.watch(themeModeProvider); // Force rebuild on theme change
     final user = ref.watch(authProvider).user;
+    final currentIndex = ref.watch(adminDashboardTabProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          AdminHomeView(name: user?.name ?? "Admin"),
-          const AdminUserManagementScreen(),
-          const AdminReportsScreen(),
-          const AdminProfileScreen(),
-        ],
-      ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
+      body: _buildTabBody(currentIndex, user?.name ?? 'Admin'),
+      bottomNavigationBar: _buildBottomNavigationBar(currentIndex),
     );
   }
 
-  Widget _buildBottomNavigationBar() {
+  Widget _buildTabBody(int index, String adminName) {
+    switch (index) {
+      case 1:
+        return AdminUserManagementScreen();
+      case 2:
+        return AdminReportsScreen();
+      case 3:
+        return AdminProfileScreen();
+      case 0:
+      default:
+        return AdminHomeView(name: adminName);
+    }
+  }
+
+  Widget _buildBottomNavigationBar(int currentIndex) {
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.surfaceColor,
-        border: const Border(
+        border: Border(
           top: BorderSide(color: AppTheme.borderColor, width: 1),
         ),
       ),
       child: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        currentIndex: currentIndex,
+        onTap: (index) => ref.read(adminDashboardTabProvider.notifier).setTab(index),
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.transparent,
         elevation: 0,

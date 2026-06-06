@@ -82,7 +82,7 @@ class _AdminAddUserScreenState extends ConsumerState<AdminAddUserScreen> {
         backgroundColor: AppTheme.backgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: AppTheme.textColor),
+          icon: Icon(CupertinoIcons.xmark, color: AppTheme.textColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(

@@ -25,14 +25,14 @@ class _LessonSearchScreenState extends State<LessonSearchScreen> {
             // Search Header
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: AppTheme.backgroundColor,
                 border: Border(bottom: BorderSide(color: AppTheme.borderColor)),
               ),
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor, size: 24),
+                    icon: Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor, size: 24),
                     onPressed: () => Navigator.pop(context),
                   ),
                   Expanded(
@@ -50,11 +50,11 @@ class _LessonSearchScreenState extends State<LessonSearchScreen> {
                         decoration: InputDecoration(
                           hintText: "Search for lessons, topics...",
                           hintStyle: GoogleFonts.inter(color: AppTheme.subtleText, fontSize: 15),
-                          prefixIcon: const Icon(CupertinoIcons.search, color: AppTheme.subtleText, size: 20),
+                          prefixIcon: Icon(CupertinoIcons.search, color: AppTheme.subtleText, size: 20),
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           suffixIcon: IconButton(
-                            icon: const Icon(CupertinoIcons.clear_thick_circled, color: AppTheme.subtleText, size: 16),
+                            icon: Icon(CupertinoIcons.clear_thick_circled, color: AppTheme.subtleText, size: 16),
                             onPressed: () => _searchController.clear(),
                           ),
                         ),
@@ -99,7 +99,7 @@ class _LessonSearchScreenState extends State<LessonSearchScreen> {
         padding: const EdgeInsets.only(bottom: 16),
         child: Row(
           children: [
-            const Icon(CupertinoIcons.time, color: AppTheme.subtleText, size: 20),
+            Icon(CupertinoIcons.time, color: AppTheme.subtleText, size: 20),
             const SizedBox(width: 16),
             Expanded(
               child: Text(
@@ -111,7 +111,7 @@ class _LessonSearchScreenState extends State<LessonSearchScreen> {
                 ),
               ),
             ),
-            const Icon(CupertinoIcons.arrow_up_left, color: AppTheme.borderColor, size: 16),
+            Icon(CupertinoIcons.arrow_up_left, color: AppTheme.borderColor, size: 16),
           ],
         ),
       ),

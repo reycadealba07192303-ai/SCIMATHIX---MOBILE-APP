@@ -3,19 +3,52 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:scimathix/core/config/api_config.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
 import 'package:scimathix/presentation/screens/teacher/teacher_notifications_screen.dart';
 import 'package:scimathix/logic/auth_provider.dart';
 import 'package:scimathix/presentation/screens/teacher/classroom/teacher_classroom_screen.dart';
+import 'package:scimathix/logic/data_providers.dart';
+import 'package:scimathix/data/services/socket_service.dart';
 
-class TeacherHomeView extends ConsumerWidget {
+class TeacherHomeView extends ConsumerStatefulWidget {
   final String name;
   const TeacherHomeView({super.key, required this.name});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TeacherHomeView> createState() => _TeacherHomeViewState();
+}
+
+class _TeacherHomeViewState extends ConsumerState<TeacherHomeView> {
+  late final SocketService _socketService;
+
+  @override
+  void initState() {
+    super.initState();
+    _socketService = ref.read(socketServiceProvider);
+    _socketService.initSocket();
+    _socketService.on('academic_updated', _handleAcademicUpdate);
+    _socketService.on('new_notification', _handleAcademicUpdate);
+  }
+
+  void _handleAcademicUpdate(dynamic data) {
+    if (!mounted) return;
+    ref.read(authProvider.notifier).refreshCurrentUser();
+    ref.invalidate(globalAnnouncementsProvider);
+  }
+
+  @override
+  void dispose() {
+    _socketService.off('academic_updated');
+    _socketService.off('new_notification');
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final user = ref.watch(authProvider).user;
     final handledClasses = user?.handledClasses ?? [];
+    final announcementsAsync = ref.watch(globalAnnouncementsProvider);
 
     return SafeArea(
       child: CustomScrollView(
@@ -74,6 +107,12 @@ class TeacherHomeView extends ConsumerWidget {
                 ),
               ),
             ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+              child: _buildAnnouncements(announcementsAsync),
+            ),
+          ),
           const SliverToBoxAdapter(child: SizedBox(height: 40)),
         ],
       ),
@@ -81,8 +120,6 @@ class TeacherHomeView extends ConsumerWidget {
   }
 
   Widget _buildHeader(BuildContext context, String? profilePicture) {
-    final baseUrl = 'http://10.185.199.230:5000/uploads/';
-    
     return FadeInDown(
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -92,7 +129,7 @@ class TeacherHomeView extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "Hello, $name 👋",
+                  "Hello, ${widget.name} 👋",
                   style: GoogleFonts.inter(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
@@ -116,7 +153,7 @@ class TeacherHomeView extends ConsumerWidget {
           Row(
             children: [
               IconButton(
-                icon: const Icon(CupertinoIcons.bell, color: AppTheme.textColor),
+                icon: Icon(CupertinoIcons.bell, color: AppTheme.textColor),
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -134,7 +171,7 @@ class TeacherHomeView extends ConsumerWidget {
                   radius: 22,
                   backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
                   backgroundImage: profilePicture != null && profilePicture.isNotEmpty
-                      ? NetworkImage('$baseUrl$profilePicture')
+                      ? NetworkImage(ApiConfig.imageUrl(profilePicture))
                       : null,
                   child: profilePicture == null || profilePicture.isEmpty
                       ? const Icon(CupertinoIcons.person_solid, color: AppTheme.primaryColor)
@@ -240,6 +277,91 @@ class TeacherHomeView extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAnnouncements(AsyncValue<List<dynamic>> announcementsAsync) {
+    return FadeInUp(
+      delay: const Duration(milliseconds: 300),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Recent Announcements",
+            style: GoogleFonts.inter(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textColor,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 16),
+          announcementsAsync.when(
+            data: (announcements) {
+              if (announcements.isEmpty) {
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.borderColor),
+                  ),
+                  child: Center(
+                    child: Text(
+                      "No new announcements.",
+                      style: GoogleFonts.inter(color: AppTheme.subtleText),
+                    ),
+                  ),
+                );
+              }
+              return Column(
+                children: announcements.map((ann) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surfaceColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.borderColor),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.02),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        )
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(CupertinoIcons.speaker_2_fill, color: AppTheme.primaryColor, size: 16),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                ann['title'] ?? 'Announcement',
+                                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: AppTheme.textColor),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          ann['message'] ?? '',
+                          style: GoogleFonts.inter(fontSize: 12, color: AppTheme.subtleText, height: 1.5),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (err, stack) => Center(child: Text('Error loading announcements: $err')),
+          ),
+        ],
       ),
     );
   }

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
-import 'package:scimathix/presentation/screens/auth/login_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -19,22 +20,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     OnboardingData(
       title: "Interactive Learning",
       description: "Master Mathematics and Science with our AI-powered interactive modules.",
-      icon: Icons.biotech_outlined,
+      icon: FluentIcons.beaker_24_regular,
       color: AppTheme.primaryColor,
     ),
     OnboardingData(
       title: "AI-Generated Quizzes",
       description: "Test your knowledge with personalized quizzes designed to help you improve.",
-      icon: Icons.psychology_outlined,
+      icon: FluentIcons.brain_circuit_24_regular,
       color: AppTheme.primaryColor,
     ),
     OnboardingData(
       title: "Gamified Progress",
       description: "Earn XP, badges, and climb the leaderboard while mastering complex topics.",
-      icon: Icons.workspace_premium_outlined,
+      icon: FluentIcons.premium_24_regular,
       color: AppTheme.primaryColor,
     ),
   ];
+
+  Future<void> _completeOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('has_seen_onboarding', true);
+    if (mounted) {
+      Navigator.of(context).pushReplacementNamed('/root');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +98,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             curve: Curves.easeInOut,
                           );
                         } else {
-                          Navigator.of(context).pushReplacementNamed('/root');
+                          _completeOnboarding();
                         }
                       },
                       child: Container(
@@ -119,9 +128,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 top: 20,
                 right: 20,
                 child: TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pushReplacementNamed('/root');
-                  },
+                  onPressed: _completeOnboarding,
                   child: Text(
                     "Skip",
                     style: GoogleFonts.inter(

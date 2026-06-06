@@ -11,6 +11,11 @@ const messageSchema = new mongoose.Schema({
         ref: 'Lesson',
         required: false // Can be general chat or lesson-specific
     },
+    conversationId: {
+        type: String,
+        required: false,
+        index: true
+    },
     role: {
         type: String,
         enum: ['user', 'assistant'],

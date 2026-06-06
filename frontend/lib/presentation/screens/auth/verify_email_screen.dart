@@ -17,7 +17,6 @@ class VerifyEmailScreen extends ConsumerStatefulWidget {
 
 class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   bool _isResending = false;
-  bool _isChecking = false;
 
   Timer? _timer;
 
@@ -115,49 +114,6 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _checkVerification() async {
-    setState(() => _isChecking = true);
-    
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      await user?.reload();
-      final refreshedUser = FirebaseAuth.instance.currentUser;
-      
-      if (refreshedUser?.emailVerified ?? false) {
-        if (mounted) {
-          _showAlert(
-            title: "Email Verified!",
-            message: "Your account has been verified successfully. Welcome to SCIMATHIX!",
-            icon: CupertinoIcons.checkmark_circle,
-            color: Colors.green,
-          );
-          await Future.delayed(const Duration(milliseconds: 500));
-          ref.invalidate(authProvider);
-        }
-      } else {
-        if (mounted) {
-          _showAlert(
-            title: "Not Verified Yet",
-            message: "Your email hasn't been verified yet. Please check your inbox and click the verification link.",
-            icon: CupertinoIcons.exclamationmark_triangle,
-            color: Colors.orange,
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        _showAlert(
-          title: "Error",
-          message: "Could not check verification status. Please try again.",
-          icon: CupertinoIcons.xmark_circle,
-          color: Colors.redAccent,
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isChecking = false);
-    }
   }
 
   Future<void> _resendEmail() async {
@@ -317,7 +273,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 delay: const Duration(milliseconds: 800),
                 child: TextButton.icon(
                   onPressed: () => ref.read(authProvider.notifier).logout(),
-                  icon: const Icon(CupertinoIcons.arrow_left, size: 16, color: AppTheme.subtleText),
+                  icon: Icon(CupertinoIcons.arrow_left, size: 16, color: AppTheme.subtleText),
                   label: Text(
                     "Use a different account",
                     style: GoogleFonts.inter(color: AppTheme.subtleText, fontSize: 14),

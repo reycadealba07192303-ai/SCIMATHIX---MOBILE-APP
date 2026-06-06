@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
 import 'package:scimathix/presentation/screens/student/ai/ai_chat_screen.dart';
+import 'package:scimathix/logic/auth_provider.dart';
+import 'package:scimathix/presentation/screens/student/quiz/quiz_instructions_screen.dart';
 
-class LessonViewerScreen extends StatefulWidget {
+class LessonViewerScreen extends ConsumerStatefulWidget {
   final String lessonTitle;
   final String? lessonId;
   final String? content;
@@ -21,13 +24,40 @@ class LessonViewerScreen extends StatefulWidget {
   });
 
   @override
-  State<LessonViewerScreen> createState() => _LessonViewerScreenState();
+  ConsumerState<LessonViewerScreen> createState() => _LessonViewerScreenState();
 }
 
-class _LessonViewerScreenState extends State<LessonViewerScreen> {
+class _LessonViewerScreenState extends ConsumerState<LessonViewerScreen> {
   final ScrollController _scrollController = ScrollController();
   double _readingProgress = 0.0;
   bool _showSummary = true;
+
+  bool get _hasFailedAiSummary {
+    final summary = widget.summary?.trim().toLowerCase() ?? '';
+    return summary.isEmpty || summary.contains('analysis failed');
+  }
+
+  String get _displaySummary {
+    if (!_hasFailedAiSummary) return widget.summary!.trim();
+
+    final content = widget.content?.replaceAll(RegExp(r'\s+'), ' ').trim() ?? '';
+    if (content.isEmpty) return '';
+    return content.length > 450 ? '${content.substring(0, 450)}...' : content;
+  }
+
+  List<dynamic> get _displayObjectives {
+    final objectives = widget.objectives ?? [];
+    final hasFallbackObjective = objectives.length == 1 &&
+        objectives.first.toString().toLowerCase().contains('review the uploaded content');
+
+    if (objectives.isNotEmpty && !hasFallbackObjective) return objectives;
+
+    return [
+      'Identify the main ideas in this lesson.',
+      'Explain the key Science concepts in your own words.',
+      'Use the lesson content to answer practice questions.',
+    ];
+  }
 
   @override
   void initState() {
@@ -53,13 +83,13 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.surfaceColor,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(CupertinoIcons.clear, color: AppTheme.textColor, size: 24),
+          icon: Icon(CupertinoIcons.clear, color: AppTheme.textColor, size: 24),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -115,16 +145,16 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
             const SizedBox(height: 24),
 
             // AI Summary Section (shown by default)
-            if (_showSummary && widget.summary != null && widget.summary!.isNotEmpty) ...[
+            if (_showSummary && _displaySummary.isNotEmpty) ...[
               _buildAiSection(
                 icon: CupertinoIcons.sparkles,
                 title: "AI Summary",
                 color: AppTheme.primaryColor,
                 child: Text(
-                  widget.summary!,
+                  _displaySummary,
                   style: GoogleFonts.inter(
                     fontSize: 15,
-                    color: AppTheme.textColor.withOpacity(0.85),
+                    color: AppTheme.textColor.withValues(alpha: 0.85),
                     height: 1.7,
                   ),
                 ),
@@ -133,13 +163,13 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
             ],
 
             // Learning Objectives Section
-            if (_showSummary && widget.objectives != null && widget.objectives!.isNotEmpty) ...[
+            if (_showSummary && _displayObjectives.isNotEmpty) ...[
               _buildAiSection(
                 icon: CupertinoIcons.checkmark_seal,
                 title: "Learning Objectives",
                 color: AppTheme.secondaryColor,
                 child: Column(
-                  children: widget.objectives!.asMap().entries.map((entry) {
+                  children: _displayObjectives.asMap().entries.map((entry) {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: Row(
@@ -150,7 +180,7 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
                             width: 22,
                             height: 22,
                             decoration: BoxDecoration(
-                              color: AppTheme.secondaryColor.withOpacity(0.1),
+                              color: AppTheme.secondaryColor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Center(
@@ -182,7 +212,7 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              const Divider(color: AppTheme.borderColor),
+              Divider(color: AppTheme.borderColor),
               const SizedBox(height: 20),
             ],
 
@@ -191,10 +221,78 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
               widget.content ?? "No content available for this lesson.",
               style: GoogleFonts.inter(
                 fontSize: 17,
-                color: AppTheme.textColor.withOpacity(0.9),
+                color: AppTheme.textColor.withValues(alpha: 0.9),
                 height: 1.8,
               ),
             ),
+            const SizedBox(height: 40),
+            
+            // Take Practice Quiz Button
+            if (widget.lessonId != null)
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (_) => const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)),
+                    );
+                    
+                    final api = ref.read(apiServiceProvider);
+                    final quizData = await api.getQuizByLesson(widget.lessonId!);
+                    
+                    if (context.mounted) {
+                      Navigator.pop(context); // Close loading dialog
+                      
+                      if (quizData != null && quizData['_id'] != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => QuizInstructionsScreen(
+                              quizId: quizData['_id'],
+                              quizTitle: quizData['title'] ?? 'Practice Quiz',
+                              timeLimit: quizData['timeLimit'] ?? 15,
+                              questionsCount: quizData['questionsCount'] ?? 10,
+                              passingScore: quizData['passingScore'] ?? 60,
+                              themeColor: AppTheme.secondaryColor,
+                              isPractice: quizData['isPractice'] == true,
+                              scheduledDate: quizData['scheduledDate'],
+                              scheduledTime: quizData['scheduledTime'],
+                              endTime: quizData['endTime'],
+                            ),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("No practice quiz found for this lesson yet."),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(CupertinoIcons.doc_text, color: Colors.white, size: 20),
+                  label: Text(
+                    "Take Practice Quiz",
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.secondaryColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+
             const SizedBox(height: 80), // Space for FAB
           ],
         ),
@@ -232,9 +330,9 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.03),
+        color: color.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.15)),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

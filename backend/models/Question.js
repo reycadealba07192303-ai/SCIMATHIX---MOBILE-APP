@@ -15,6 +15,10 @@ const questionSchema = new mongoose.Schema({
         type: String, // e.g., "Solve for x: {v1}x + {v2} = {v3}"
         required: true
     },
+    imageUrl: {
+        type: String,
+        default: ''
+    },
     variables: {
         type: Map,
         of: [Number], // e.g., { "v1": [2, 3, 5], "v2": [5, 10], "v3": [15, 20] }
@@ -28,10 +32,13 @@ const questionSchema = new mongoose.Schema({
         type: String // For multiple choice
     }],
     explanationTemplate: String, // AI Generated step-by-step logic
+    solutionSteps: [{
+        type: String
+    }],
     difficulty: {
         type: String,
         enum: ['easy', 'medium', 'hard'],
-        default: 'medium'
+        default: 'easy'
     }
 });
 

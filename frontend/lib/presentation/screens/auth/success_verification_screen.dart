@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
 import 'package:scimathix/presentation/screens/auth/login_screen.dart';
 
@@ -52,7 +53,7 @@ class SuccessVerificationScreen extends StatelessWidget {
                             border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
                           ),
                           child: const Icon(
-                            Icons.check_rounded,
+                            FluentIcons.checkmark_24_filled,
                             size: 80,
                             color: Colors.white,
                           ),

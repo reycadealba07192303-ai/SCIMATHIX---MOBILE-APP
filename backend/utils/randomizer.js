@@ -7,7 +7,8 @@ exports.randomizeQuestion = (question) => {
     const randomizedValues = {};
     let questionText = question.baseQuestion;
     let answerFormula = question.correctAnswerTemplate;
-    let explanation = question.explanationTemplate;
+    let explanation = question.explanationTemplate || "";
+    let options = question.optionsTemplate ? [...question.optionsTemplate] : [];
 
     // 1. Pick a random value for each variable
     // Check if variables is a Map or an Object
@@ -23,6 +24,7 @@ exports.randomizeQuestion = (question) => {
             questionText = questionText.replace(regex, chosenValue);
             answerFormula = answerFormula.replace(regex, chosenValue);
             explanation = explanation.replace(regex, chosenValue);
+            options = options.map(opt => opt.replace(regex, chosenValue));
         }
     }
 
@@ -34,16 +36,31 @@ exports.randomizeQuestion = (question) => {
             actualAnswer = Math.round(actualAnswer * 100) / 100;
         }
     } catch (e) {
-        console.error("Formula Eval Error:", e);
-        actualAnswer = "Error";
+        actualAnswer = answerFormula;
     }
+
+    // Process options to evaluate formulas if applicable
+    options = options.map(opt => {
+        try {
+            const evaluated = evaluate(opt);
+            if (typeof evaluated === 'number') {
+                return Math.round(evaluated * 100) / 100;
+            }
+            return evaluated;
+        } catch (e) {
+            return opt;
+        }
+    });
 
     return {
         _id: question._id,
         text: questionText,
         type: question.type,
+        imageUrl: question.imageUrl || '',
+        options,
         randomizedValues,
         actualAnswer,
-        explanation
+        explanation,
+        solutionSteps: question.solutionSteps || []
     };
 };

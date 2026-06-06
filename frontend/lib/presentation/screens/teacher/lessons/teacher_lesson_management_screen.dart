@@ -1,12 +1,100 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
+import 'package:scimathix/logic/auth_provider.dart';
 import 'package:scimathix/presentation/screens/teacher/lessons/upload_lesson_screen.dart';
 
-class TeacherLessonManagementScreen extends StatelessWidget {
+class TeacherLessonManagementScreen extends ConsumerStatefulWidget {
   const TeacherLessonManagementScreen({super.key});
+
+  @override
+  ConsumerState<TeacherLessonManagementScreen> createState() => _TeacherLessonManagementScreenState();
+}
+
+class _TeacherLessonManagementScreenState extends ConsumerState<TeacherLessonManagementScreen> {
+  List<dynamic> _lessons = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLessons();
+  }
+
+  Future<void> _loadLessons() async {
+    setState(() => _isLoading = true);
+    final lessons = await ref.read(apiServiceProvider).getLessons();
+    if (mounted) {
+      setState(() {
+        _lessons = lessons;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _deleteLesson(String lessonId) async {
+    final ok = await ref.read(apiServiceProvider).deleteLesson(lessonId);
+    if (!mounted) return;
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Lesson deleted.")));
+      _loadLessons();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to delete lesson.")));
+    }
+  }
+
+  void _showEditDialog(Map<String, dynamic> lesson) {
+    final titleController = TextEditingController(text: lesson['title'] ?? '');
+    final contentController = TextEditingController(text: lesson['content'] ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Edit Lesson", style: GoogleFonts.inter(fontWeight: FontWeight.w800)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(labelText: "Title"),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: contentController,
+                minLines: 4,
+                maxLines: 8,
+                decoration: const InputDecoration(labelText: "Content"),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () async {
+              final ok = await ref.read(apiServiceProvider).updateLesson(lesson['_id'], {
+                'title': titleController.text.trim(),
+                'content': contentController.text.trim(),
+              });
+              if (!context.mounted) return;
+              Navigator.pop(context);
+              if (ok) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Lesson updated.")));
+                _loadLessons();
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to update lesson.")));
+              }
+            },
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,29 +112,32 @@ class TeacherLessonManagementScreen extends StatelessWidget {
           ),
         ),
         centerTitle: true,
-      ),
-      body: Column(
-        children: [
-          _buildFilterTabs(),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(24),
-              children: [
-                _buildLessonItem("Algebra Fundamentals", "Grade 10 • Mathematics", "Published"),
-                _buildLessonItem("Chemical Bonding", "Grade 9 • Science", "Draft"),
-                _buildLessonItem("Quadratic Equations", "Grade 10 • Mathematics", "Published"),
-                _buildLessonItem("Cell Structure", "Grade 8 • Science", "Published"),
-              ],
-            ),
+        actions: [
+          IconButton(
+            onPressed: _loadLessons,
+            icon: Icon(CupertinoIcons.refresh, color: AppTheme.textColor),
           ),
         ],
       ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _lessons.isEmpty
+              ? Center(child: Text("No lessons yet.", style: GoogleFonts.inter(color: AppTheme.subtleText)))
+              : RefreshIndicator(
+                  onRefresh: _loadLessons,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(24),
+                    itemCount: _lessons.length,
+                    itemBuilder: (context, index) => _buildLessonItem(Map<String, dynamic>.from(_lessons[index]), index),
+                  ),
+                ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
+        onPressed: () async {
+          await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const UploadLessonScreen()),
           );
+          _loadLessons();
         },
         backgroundColor: AppTheme.primaryColor,
         child: const Icon(CupertinoIcons.add, color: Colors.white),
@@ -54,51 +145,13 @@ class TeacherLessonManagementScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFilterTabs() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppTheme.borderColor)),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            _buildTab("All", true),
-            _buildTab("Mathematics", false),
-            _buildTab("Science", false),
-            _buildTab("Drafts", false),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _buildLessonItem(Map<String, dynamic> lesson, int index) {
+    final subject = lesson['subject'];
+    final subjectName = subject is Map ? subject['name'] ?? 'Subject' : 'Subject';
+    final title = lesson['title'] ?? 'Untitled Lesson';
 
-  Widget _buildTab(String label, bool isActive) {
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: isActive ? AppTheme.primaryColor : Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isActive ? AppTheme.primaryColor : AppTheme.borderColor,
-        ),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.inter(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: isActive ? Colors.white : AppTheme.subtleText,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLessonItem(String title, String subtitle, String status) {
-    bool isPublished = status == "Published";
     return FadeInUp(
+      delay: Duration(milliseconds: index * 40),
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(16),
@@ -122,42 +175,20 @@ class TeacherLessonManagementScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                      color: AppTheme.textColor,
-                    ),
-                  ),
+                  Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15, color: AppTheme.textColor)),
                   const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      color: AppTheme.subtleText,
-                    ),
-                  ),
+                  Text(subjectName, style: GoogleFonts.inter(fontSize: 13, color: AppTheme.subtleText)),
                 ],
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: isPublished ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                status,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: isPublished ? Colors.green : Colors.orange,
-                ),
-              ),
+            IconButton(
+              icon: const Icon(CupertinoIcons.pencil, color: AppTheme.primaryColor),
+              onPressed: () => _showEditDialog(lesson),
             ),
-            const SizedBox(width: 8),
-            const Icon(CupertinoIcons.chevron_right, color: AppTheme.borderColor, size: 16),
+            IconButton(
+              icon: const Icon(CupertinoIcons.delete, color: Colors.redAccent),
+              onPressed: () => _deleteLesson(lesson['_id']),
+            ),
           ],
         ),
       ),

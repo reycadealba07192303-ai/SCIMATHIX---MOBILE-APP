@@ -1,0 +1,22 @@
+# Dependencies
+backend/node_modules/
+frontend/.dart_tool/
+frontend/build/
+
+# Environment & secrets
+backend/.env
+backend/firebaseServiceAccount.json
+
+# Uploads (local dev files)
+backend/uploads/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

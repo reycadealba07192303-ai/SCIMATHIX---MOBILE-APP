@@ -68,6 +68,7 @@ class QuizCategoriesScreen extends ConsumerWidget {
                     final subjectObj = quiz['subject'];
                     final subjectName = subjectObj != null ? subjectObj['name'] : 'General';
                     final questionsCount = (quiz['questions'] as List?)?.length ?? 5;
+                    final isPractice = quiz['isPractice'] == true;
                     
                     // Pick a rotating color for variety
                     final colors = [AppTheme.primaryColor, AppTheme.secondaryColor, AppTheme.accentColor];
@@ -80,8 +81,16 @@ class QuizCategoriesScreen extends ConsumerWidget {
                           context, 
                           MaterialPageRoute(
                             builder: (_) => QuizInstructionsScreen(
-                              quizTitle: title, 
+                              quizId: quiz['_id'] ?? '',
+                              quizTitle: title,
+                              timeLimit: quiz['timeLimit'] ?? 15,
+                              questionsCount: quiz['questionsCount'] ?? questionsCount,
+                              passingScore: quiz['passingScore'] ?? 60,
                               themeColor: color,
+                              isPractice: isPractice,
+                              scheduledDate: quiz['scheduledDate'],
+                              scheduledTime: quiz['scheduledTime'],
+                              endTime: quiz['endTime'],
                             )
                           )
                         ),
@@ -115,25 +124,46 @@ class QuizCategoriesScreen extends ConsumerWidget {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start, 
                                   children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: color.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        subjectName, 
-                                        style: GoogleFonts.inter(color: color, fontSize: 10, fontWeight: FontWeight.w700)
-                                      ),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: color.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            subjectName,
+                                            style: GoogleFonts.inter(color: color, fontSize: 10, fontWeight: FontWeight.w700),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: isPractice ? AppTheme.primaryColor.withOpacity(0.1) : AppTheme.accentColor.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            isPractice ? "Practice" : "Real Quiz",
+                                            style: GoogleFonts.inter(
+                                              color: isPractice ? AppTheme.primaryColor : AppTheme.accentColor,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      title, 
+                                      title,
                                       style: GoogleFonts.inter(color: AppTheme.textColor, fontWeight: FontWeight.w600, fontSize: 16)
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      "$questionsCount Questions", 
+                                      "$questionsCount Questions",
                                       style: GoogleFonts.inter(color: AppTheme.subtleText, fontSize: 13)
                                     ),
                                   ]

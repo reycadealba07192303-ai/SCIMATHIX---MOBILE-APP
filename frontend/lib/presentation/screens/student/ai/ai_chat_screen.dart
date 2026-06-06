@@ -1,22 +1,72 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
+import 'package:scimathix/logic/auth_provider.dart';
 
-class AiChatScreen extends StatefulWidget {
+class AiChatScreen extends ConsumerStatefulWidget {
   final String? lessonId;
   const AiChatScreen({super.key, this.lessonId});
 
   @override
-  State<AiChatScreen> createState() => _AiChatScreenState();
+  ConsumerState<AiChatScreen> createState() => _AiChatScreenState();
 }
 
-class _AiChatScreenState extends State<AiChatScreen> {
+class _AiChatScreenState extends ConsumerState<AiChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final List<Map<String, String>> _messages = [
-    {"role": "ai", "text": "Hi! I'm your SCIMATHIX AI assistant. Ask me anything about Math or Science! 🧪"},
+    {"role": "assistant", "text": "Hi! I'm your SCIMATHIX AI assistant. Ask me anything about Math or Science! 🧪"},
   ];
+  bool _isLoading = false;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    if (widget.lessonId == null) return;
+    setState(() => _isLoading = true);
+    final api = ref.read(apiServiceProvider);
+    final history = await api.getChatHistory(widget.lessonId!);
+    if (history.isNotEmpty && mounted) {
+      setState(() {
+        _messages.clear();
+        for (var msg in history) {
+          _messages.add({
+            "role": msg['role'] == 'user' ? 'user' : 'assistant',
+            "text": msg['content'] ?? '',
+          });
+        }
+      });
+      _scrollToBottom();
+    }
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +76,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
         backgroundColor: AppTheme.backgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor),
+          icon: Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Row(
@@ -47,18 +97,21 @@ class _AiChatScreenState extends State<AiChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(24),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final msg = _messages[index];
-                final isAi = msg["role"] == "ai";
-                return FadeInUp(
-                  duration: const Duration(milliseconds: 300),
-                  child: _buildMessageBubble(msg["text"]!, isAi),
-                );
-              },
-            ),
+            child: _isLoading && _messages.length <= 1
+                ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(24),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      final msg = _messages[index];
+                      final isAi = msg["role"] == "assistant" || msg["role"] == "ai";
+                      return FadeInUp(
+                        duration: const Duration(milliseconds: 300),
+                        child: _buildMessageBubble(msg["text"]!, isAi),
+                      );
+                    },
+                  ),
           ),
           _buildInputBar(),
         ],
@@ -83,14 +136,49 @@ class _AiChatScreenState extends State<AiChatScreen> {
           ),
           border: isAi ? Border.all(color: AppTheme.borderColor) : null,
         ),
-        child: Text(
-          text,
-          style: GoogleFonts.inter(
-            color: isAi ? AppTheme.textColor : Colors.white,
-            fontSize: 15,
-            height: 1.5,
-          ),
-        ),
+        child: isAi
+          ? MarkdownBody(
+              data: text,
+              shrinkWrap: true,
+              selectable: true,
+              styleSheet: MarkdownStyleSheet(
+                p: GoogleFonts.inter(
+                  color: AppTheme.textColor,
+                  fontSize: 15,
+                  height: 1.5,
+                ),
+                strong: GoogleFonts.inter(
+                  color: AppTheme.textColor,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  height: 1.5,
+                ),
+                em: GoogleFonts.inter(
+                  color: AppTheme.textColor,
+                  fontSize: 15,
+                  fontStyle: FontStyle.italic,
+                  height: 1.5,
+                ),
+                listBullet: GoogleFonts.inter(
+                  color: AppTheme.textColor,
+                  fontSize: 15,
+                  height: 1.5,
+                ),
+                code: GoogleFonts.inter(
+                  color: AppTheme.primaryColor,
+                  fontSize: 14,
+                  backgroundColor: AppTheme.primaryColor.withOpacity(0.08),
+                ),
+              ),
+            )
+          : Text(
+              text,
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 15,
+                height: 1.5,
+              ),
+            ),
       ),
     );
   }
@@ -98,7 +186,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   Widget _buildInputBar() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppTheme.surfaceColor,
         border: Border(top: BorderSide(color: AppTheme.borderColor)),
       ),
@@ -125,22 +213,47 @@ class _AiChatScreenState extends State<AiChatScreen> {
           ),
           const SizedBox(width: 12),
           GestureDetector(
-            onTap: () {
-              if (_messageController.text.trim().isNotEmpty) {
+            onTap: _isLoading ? null : () async {
+              if (_messageController.text.trim().isNotEmpty && widget.lessonId != null) {
+                final text = _messageController.text.trim();
                 setState(() {
-                  _messages.add({"role": "user", "text": _messageController.text.trim()});
-                  _messages.add({"role": "ai", "text": "Great question! Let me think about that... This feature will be powered by the AI backend once integrated."});
+                  _messages.add({"role": "user", "text": text});
                   _messageController.clear();
+                  _isLoading = true;
                 });
+                _scrollToBottom();
+                
+                final api = ref.read(apiServiceProvider);
+                final res = await api.sendMessage(text, widget.lessonId);
+                
+                if (mounted) {
+                  setState(() {
+                    if (res != null && res['assistantMessage'] != null) {
+                      _messages.add({
+                        "role": "assistant",
+                        "text": res['assistantMessage']['content'] ?? "I didn't understand that."
+                      });
+                    } else {
+                      _messages.add({
+                        "role": "assistant",
+                        "text": "Sorry, I'm having trouble connecting to the server."
+                      });
+                    }
+                    _isLoading = false;
+                  });
+                  _scrollToBottom();
+                }
               }
             },
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor,
+                color: _isLoading ? AppTheme.subtleText : AppTheme.primaryColor,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(CupertinoIcons.arrow_up, color: Colors.white, size: 20),
+              child: _isLoading
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(CupertinoIcons.arrow_up, color: Colors.white, size: 20),
             ),
           ),
         ],

@@ -24,8 +24,14 @@ const quizAttemptSchema = new mongoose.Schema({
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Question'
         },
+        questionText: String,
+        questionType: String,
+        imageUrl: String,
         chosenAnswer: String,
+        correctAnswer: String,
         isCorrect: Boolean,
+        explanation: String,
+        solutionSteps: [String],
         actualValues: Map // Stores the randomized values used for this student
     }],
     xpEarned: {

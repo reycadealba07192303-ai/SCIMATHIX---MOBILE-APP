@@ -24,7 +24,7 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
         backgroundColor: AppTheme.backgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor),
+          icon: Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor),
           onPressed: () => Navigator.pop(context),
         ),
       ),

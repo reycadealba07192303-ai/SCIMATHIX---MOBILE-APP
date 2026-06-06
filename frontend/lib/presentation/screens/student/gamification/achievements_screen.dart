@@ -13,7 +13,7 @@ class AchievementsScreen extends StatelessWidget {
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
         backgroundColor: AppTheme.backgroundColor, elevation: 0, centerTitle: true,
-        leading: IconButton(icon: const Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor), onPressed: () => Navigator.pop(context)),
+        leading: IconButton(icon: Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor), onPressed: () => Navigator.pop(context)),
         title: Text("Achievements", style: GoogleFonts.inter(color: AppTheme.textColor, fontWeight: FontWeight.w600, fontSize: 18)),
       ),
       body: ListView(
@@ -51,7 +51,7 @@ class AchievementsScreen extends StatelessWidget {
           Text("2,210 XP", style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w700, color: AppTheme.textColor)),
         ]),
         const SizedBox(height: 12),
-        ClipRRect(borderRadius: BorderRadius.circular(8), child: const LinearProgressIndicator(value: 0.7, backgroundColor: AppTheme.borderColor, valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor), minHeight: 8)),
+        ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: 0.7, backgroundColor: AppTheme.borderColor, valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor), minHeight: 8)),
         const SizedBox(height: 8),
         Text("790 XP to Level 6", style: GoogleFonts.inter(color: AppTheme.subtleText, fontSize: 13, fontWeight: FontWeight.w500)),
       ]),

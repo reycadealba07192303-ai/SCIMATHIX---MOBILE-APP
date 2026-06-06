@@ -30,7 +30,7 @@ class ModuleScreen extends StatelessWidget {
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor, size: 24),
+          icon: Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor, size: 24),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(

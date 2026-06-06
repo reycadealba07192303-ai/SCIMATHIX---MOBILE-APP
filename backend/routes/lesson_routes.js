@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { createLesson, getLessons, getLessonById } = require('../controllers/lesson_controller');
+const { createLesson, getLessons, getLessonById, updateLesson, deleteLesson } = require('../controllers/lesson_controller');
 const { protect, teacherOnly } = require('../middleware/auth_middleware');
 
 const upload = require('../middleware/upload_middleware');
@@ -14,6 +14,8 @@ router.route('/')
     .post(protect, teacherOnly, uploadMiddleware.single('file'), createLesson);
 
 router.route('/:id')
-    .get(protect, getLessonById);
+    .get(protect, getLessonById)
+    .put(protect, teacherOnly, updateLesson)
+    .delete(protect, teacherOnly, deleteLesson);
 
 module.exports = router;

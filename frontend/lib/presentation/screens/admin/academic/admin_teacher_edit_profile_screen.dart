@@ -97,7 +97,7 @@ class _AdminTeacherEditProfileScreenState extends ConsumerState<AdminTeacherEdit
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
-        iconTheme: const IconThemeData(color: AppTheme.textColor),
+        iconTheme: IconThemeData(color: AppTheme.textColor),
         title: Text(
           "Edit Teacher Profile",
           style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppTheme.textColor),

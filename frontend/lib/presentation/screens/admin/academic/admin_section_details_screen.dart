@@ -5,6 +5,7 @@ import 'package:animate_do/animate_do.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
 import 'package:scimathix/logic/auth_provider.dart';
+import 'package:scimathix/core/utils/app_logger.dart';
 
 class AdminSectionDetailsScreen extends ConsumerStatefulWidget {
   final String levelName;
@@ -24,7 +25,6 @@ class AdminSectionDetailsScreen extends ConsumerStatefulWidget {
 
 class _AdminSectionDetailsScreenState extends ConsumerState<AdminSectionDetailsScreen> {
   List<dynamic> _students = [];
-  Map<String, dynamic>? _teacher;
   bool _isLoading = true;
 
   @override
@@ -51,7 +51,7 @@ class _AdminSectionDetailsScreenState extends ConsumerState<AdminSectionDetailsS
         });
       }
     } catch (e) {
-      print('Fetch Section Details Error: $e');
+      AppLogger.error('Fetch Section Details', e);
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -64,7 +64,7 @@ class _AdminSectionDetailsScreenState extends ConsumerState<AdminSectionDetailsS
         backgroundColor: AppTheme.backgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppTheme.textColor),
+          icon: Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Column(
@@ -218,7 +218,7 @@ class _AdminSectionDetailsScreenState extends ConsumerState<AdminSectionDetailsS
 
           return Container(
             height: MediaQuery.of(context).size.height * 0.8,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppTheme.backgroundColor,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             ),
@@ -234,7 +234,7 @@ class _AdminSectionDetailsScreenState extends ConsumerState<AdminSectionDetailsS
                       style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textColor),
                     ),
                     IconButton(
-                      icon: const Icon(CupertinoIcons.clear_circled, color: AppTheme.subtleText),
+                      icon: Icon(CupertinoIcons.clear_circled, color: AppTheme.subtleText),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],

@@ -4,7 +4,11 @@ const levelSchema = new mongoose.Schema({
     name: {
         type: String,
         required: true,
-        unique: true // e.g., "Grade 7", "Grade 8"
+    },
+    schoolYear: {
+        type: String,
+        required: true,
+        default: "2026-2027"
     },
     order: {
         type: Number,
@@ -15,5 +19,7 @@ const levelSchema = new mongoose.Schema({
         default: Date.now
     }
 });
+
+levelSchema.index({ name: 1, schoolYear: 1 }, { unique: true });
 
 module.exports = mongoose.model('Level', levelSchema);

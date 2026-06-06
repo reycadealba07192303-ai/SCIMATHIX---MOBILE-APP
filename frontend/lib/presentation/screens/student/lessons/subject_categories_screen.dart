@@ -26,7 +26,7 @@ class SubjectCategoriesScreen extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(CupertinoIcons.search, color: AppTheme.textColor, size: 24),
+            icon: Icon(CupertinoIcons.search, color: AppTheme.textColor, size: 24),
             onPressed: () {
               // Navigate to search
             },

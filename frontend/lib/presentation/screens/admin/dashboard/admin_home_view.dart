@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
 import 'package:scimathix/logic/auth_provider.dart';
+import 'package:scimathix/logic/admin_navigation_provider.dart';
 import 'package:scimathix/presentation/screens/admin/academic/admin_academic_structure_screen.dart';
 import 'package:scimathix/presentation/screens/admin/academic/admin_teacher_management_screen.dart';
 import 'package:scimathix/presentation/screens/admin/academic/admin_subject_management_screen.dart';
@@ -12,6 +13,7 @@ import 'package:scimathix/presentation/screens/admin/notifications/admin_notific
 import 'package:scimathix/presentation/screens/admin/dashboard/admin_announcements_screen.dart';
 import 'package:scimathix/presentation/screens/admin/dashboard/admin_user_logs_screen.dart';
 import 'package:scimathix/data/services/socket_service.dart';
+import 'package:scimathix/core/utils/app_logger.dart';
 
 class AdminHomeView extends ConsumerStatefulWidget {
   final String name;
@@ -28,6 +30,8 @@ class _AdminHomeViewState extends ConsumerState<AdminHomeView> {
     "lessonCount": 0,
   };
   bool _isLoading = true;
+  List<dynamic> _logs = [];
+  late final SocketService _socketService;
 
   @override
   void initState() {
@@ -37,10 +41,10 @@ class _AdminHomeViewState extends ConsumerState<AdminHomeView> {
   }
 
   void _setupSocket() {
-    final socketService = ref.read(socketServiceProvider);
-    socketService.initSocket();
-    
-    socketService.on('new_notification', (data) {
+    _socketService = ref.read(socketServiceProvider);
+    _socketService.initSocket();
+
+    _socketService.on('new_notification', (data) {
       if (mounted && data['target'] == 'OVERALL' || data['target'] == 'TEACHER ONLY' || data['target'] == 'STUDENT ONLY') { // Simplified check for demo
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -71,8 +75,7 @@ class _AdminHomeViewState extends ConsumerState<AdminHomeView> {
 
   @override
   void dispose() {
-    final socketService = ref.read(socketServiceProvider);
-    socketService.off('new_notification');
+    _socketService.off('new_notification');
     super.dispose();
   }
 
@@ -80,14 +83,16 @@ class _AdminHomeViewState extends ConsumerState<AdminHomeView> {
     try {
       final apiService = ref.read(apiServiceProvider);
       final stats = await apiService.getAdminStats();
+      final allLogs = await apiService.getLogs();
       if (mounted) {
         setState(() {
           _stats = stats;
+          _logs = allLogs.take(5).toList();
           _isLoading = false;
         });
       }
     } catch (e) {
-      print('Fetch Stats Error: $e');
+      AppLogger.error('Fetch Stats', e);
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -106,9 +111,9 @@ class _AdminHomeViewState extends ConsumerState<AdminHomeView> {
               const SizedBox(height: 32),
               _buildSystemStats(),
               const SizedBox(height: 32),
-              _buildSectionHeader("System Alerts"),
+              _buildSectionHeader("Recent Activity"),
               const SizedBox(height: 16),
-              _buildSystemAlerts(),
+              _buildRecentActivity(),
               const SizedBox(height: 32),
               _buildSectionHeader("Admin Actions"),
               const SizedBox(height: 16),
@@ -153,7 +158,7 @@ class _AdminHomeViewState extends ConsumerState<AdminHomeView> {
           Row(
             children: [
               IconButton(
-                icon: const Icon(CupertinoIcons.bell, color: AppTheme.textColor),
+                icon: Icon(CupertinoIcons.bell, color: AppTheme.textColor),
                 onPressed: () {
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminNotificationsScreen()));
                 },
@@ -244,65 +249,170 @@ class _AdminHomeViewState extends ConsumerState<AdminHomeView> {
     );
   }
 
-  Widget _buildSystemAlerts() {
+  Widget _buildRecentActivity() {
+    if (_logs.isEmpty) {
+      return Center(
+        child: Text("No recent activity.", style: GoogleFonts.inter(color: AppTheme.subtleText)),
+      );
+    }
+    
+    final displayLogs = _logs.take(3).toList();
+    
     return FadeInUp(
       delay: const Duration(milliseconds: 600),
-      child: Column(
-        children: [
-          _buildAlertTile("Teacher Verification", "3 teachers pending review", CupertinoIcons.checkmark_shield, Colors.orange),
-          _buildAlertTile("Database Backup", "Weekly backup completed successfully", CupertinoIcons.cloud_upload, Colors.green),
-          _buildAlertTile("High Traffic", "Increased student activity in Algebra", CupertinoIcons.chart_bar_square, AppTheme.primaryColor),
-        ],
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.borderColor),
+        ),
+        child: Column(
+          children: [
+            ...displayLogs.map((log) {
+              final color = _getColor(log['color'] ?? 'blue');
+              final icon = _getIcon(log['icon'] ?? 'info');
+              return _buildActivityTile(
+                log['action'] ?? 'Activity',
+                log['user'] ?? 'Unknown User',
+                icon,
+                color,
+                log,
+              );
+            }).toList(),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminUserLogsScreen())),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: AppTheme.primaryColor.withOpacity(0.5)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: Text('View All System Activity', style: GoogleFonts.inter(color: AppTheme.primaryColor, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildAlertTile(String title, String subtitle, IconData icon, Color color) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.borderColor),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+  IconData _getIcon(String iconStr) {
+    switch (iconStr) {
+      case 'settings': return CupertinoIcons.settings;
+      case 'book': return CupertinoIcons.book;
+      case 'checkmark': return CupertinoIcons.checkmark_alt;
+      case 'login': return CupertinoIcons.arrow_right_square;
+      case 'warning': return CupertinoIcons.exclamationmark_triangle;
+      default: return CupertinoIcons.info;
+    }
+  }
+
+  Color _getColor(String colorStr) {
+    switch (colorStr) {
+      case 'blue': return Colors.blue;
+      case 'orange': return Colors.orange;
+      case 'green': return Colors.green;
+      case 'red': return Colors.red;
+      case 'purple': return AppTheme.primaryColor;
+      default: return Colors.blue;
+    }
+  }
+
+  Widget _buildActivityTile(String title, String subtitle, IconData icon, Color color, dynamic logData) {
+    return GestureDetector(
+      onTap: () {
+        _showLogDetails(logData);
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceColor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppTheme.borderColor),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 16),
             ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: AppTheme.textColor,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                      color: AppTheme.textColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: AppTheme.subtleText,
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      color: AppTheme.subtleText,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const Icon(CupertinoIcons.chevron_right, color: AppTheme.borderColor, size: 14),
-        ],
+            Icon(CupertinoIcons.chevron_right, color: AppTheme.borderColor, size: 12),
+          ],
+        ),
       ),
+    );
+  }
+
+  void _showLogDetails(dynamic log) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppTheme.backgroundColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Icon(_getIcon(log['icon'] ?? 'info'), color: _getColor(log['color'] ?? 'blue')),
+              const SizedBox(width: 10),
+              const Text("Activity Details"),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("User: ${log['user']}", style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+              Text("Role: ${log['role']}", style: GoogleFonts.inter(color: AppTheme.subtleText)),
+              const SizedBox(height: 12),
+              Text("Action:", style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+              Text(log['action'] ?? '', style: GoogleFonts.inter()),
+              const SizedBox(height: 12),
+              Text("Time:", style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+              Text(log['timestamp'] ?? '', style: GoogleFonts.inter(color: AppTheme.subtleText)),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Close"),
+            )
+          ],
+        );
+      },
     );
   }
 
@@ -331,6 +441,9 @@ class _AdminHomeViewState extends ConsumerState<AdminHomeView> {
           }),
           _buildActionItem("Teacher Handles", CupertinoIcons.briefcase, Colors.indigo, () {
             Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminTeacherManagementScreen()));
+          }),
+          _buildActionItem("Reports", CupertinoIcons.doc_chart, AppTheme.primaryColor, () {
+            ref.read(adminDashboardTabProvider.notifier).setTab(2);
           }),
         ],
       ),

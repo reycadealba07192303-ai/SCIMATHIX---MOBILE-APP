@@ -17,6 +17,7 @@ class AdminNotificationsScreen extends ConsumerStatefulWidget {
 class _AdminNotificationsScreenState extends ConsumerState<AdminNotificationsScreen> {
   List<dynamic> _notifications = [];
   bool _isLoading = true;
+  late final SocketService _socketService;
 
   @override
   void initState() {
@@ -26,10 +27,10 @@ class _AdminNotificationsScreenState extends ConsumerState<AdminNotificationsScr
   }
 
   void _setupSocket() {
-    final socketService = ref.read(socketServiceProvider);
-    socketService.initSocket();
+    _socketService = ref.read(socketServiceProvider);
+    _socketService.initSocket();
 
-    socketService.on('new_notification', (data) {
+    _socketService.on('new_notification', (data) {
       if (mounted) {
         setState(() {
           _notifications.insert(0, data);
@@ -40,14 +41,13 @@ class _AdminNotificationsScreenState extends ConsumerState<AdminNotificationsScr
 
   @override
   void dispose() {
-    final socketService = ref.read(socketServiceProvider);
-    socketService.off('new_notification');
+    _socketService.off('new_notification');
     super.dispose();
   }
 
   Future<void> _fetchNotifications() async {
     final apiService = ref.read(apiServiceProvider);
-    final data = await apiService.getNotifications('OVERALL');
+    final data = await apiService.getNotifications('ADMIN');
     if (mounted) {
       setState(() {
         _notifications = data;
@@ -103,7 +103,7 @@ class _AdminNotificationsScreenState extends ConsumerState<AdminNotificationsScr
         backgroundColor: AppTheme.backgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppTheme.textColor),
+          icon: Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -117,7 +117,7 @@ class _AdminNotificationsScreenState extends ConsumerState<AdminNotificationsScr
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(CupertinoIcons.refresh, color: AppTheme.textColor),
+            icon: Icon(CupertinoIcons.refresh, color: AppTheme.textColor),
             onPressed: () {
               setState(() => _isLoading = true);
               _fetchNotifications();

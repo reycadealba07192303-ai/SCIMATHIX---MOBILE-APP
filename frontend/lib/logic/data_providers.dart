@@ -1,7 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:scimathix/data/services/api_service.dart';
-
-final apiServiceProvider = Provider((ref) => ApiService());
+import 'package:scimathix/logic/auth_provider.dart';
 
 final lessonsProvider = FutureProvider<List<dynamic>>((ref) async {
   final api = ref.read(apiServiceProvider);
@@ -26,4 +24,17 @@ final classroomFeedProvider = FutureProvider.family<List<dynamic>, String>((ref,
 final sectionDetailsProvider = FutureProvider.family<Map<String, dynamic>?, String>((ref, sectionId) async {
   final api = ref.read(apiServiceProvider);
   return await api.getSectionDetails(sectionId);
+});
+
+final globalAnnouncementsProvider = FutureProvider<List<dynamic>>((ref) async {
+  final api = ref.read(apiServiceProvider);
+  final user = ref.read(authProvider).user;
+  String target = 'OVERALL';
+  if (user?.role == 'student') {
+    target = 'STUDENT ONLY';
+  } else if (user?.role == 'teacher') {
+    target = 'TEACHER ONLY';
+  }
+  final notifications = await api.getNotifications(target);
+  return notifications.where((n) => n['type'] == 'announcement').toList();
 });

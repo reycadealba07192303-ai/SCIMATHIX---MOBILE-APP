@@ -105,3 +105,59 @@ exports.deleteUser = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+// @desc    Update own profile (name)
+// @route   PUT /api/users/profile
+// @access  Private
+exports.updateOwnProfile = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        if (req.body.name !== undefined && req.body.name.trim()) {
+            user.name = req.body.name.trim();
+        }
+
+        const updatedUser = await user.save();
+        res.json({
+            _id: updatedUser._id,
+            name: updatedUser.name,
+            email: updatedUser.email,
+            role: updatedUser.role,
+            profilePicture: updatedUser.profilePicture,
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Update user profile image
+// @route   PUT /api/users/profile-image
+// @access  Private
+exports.updateProfileImage = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No image uploaded' });
+        }
+
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        user.profilePicture = `/uploads/${req.file.filename}`;
+        const updatedUser = await user.save();
+
+        res.json({
+            _id: updatedUser._id,
+            name: updatedUser.name,
+            email: updatedUser.email,
+            role: updatedUser.role,
+            profilePicture: updatedUser.profilePicture,
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};

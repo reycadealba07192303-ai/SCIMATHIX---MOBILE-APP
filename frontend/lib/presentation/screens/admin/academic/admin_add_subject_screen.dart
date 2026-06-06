@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
-import 'package:scimathix/data/services/api_service.dart';
 import 'package:scimathix/logic/auth_provider.dart';
 
 class AdminAddSubjectScreen extends ConsumerStatefulWidget {
@@ -109,7 +108,7 @@ class _AdminAddSubjectScreenState extends ConsumerState<AdminAddSubjectScreen> {
         backgroundColor: AppTheme.backgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: AppTheme.textColor),
+          icon: Icon(CupertinoIcons.xmark, color: AppTheme.textColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(

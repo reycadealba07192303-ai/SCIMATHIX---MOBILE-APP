@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
 import 'package:scimathix/presentation/screens/auth/login_screen.dart';
 import 'package:scimathix/presentation/screens/auth/register_screen.dart';
@@ -64,7 +66,7 @@ class RoleSelectionScreen extends StatelessWidget {
                     context,
                     title: "Student",
                     subtitle: "Learn, play, and grow your skills",
-                    icon: Icons.school_outlined,
+                    icon: FluentIcons.hat_graduation_24_regular,
                     color: AppTheme.primaryColor,
                     delay: 200,
                   ),
@@ -73,7 +75,7 @@ class RoleSelectionScreen extends StatelessWidget {
                     context,
                     title: "Teacher",
                     subtitle: "Manage lessons and track progress",
-                    icon: Icons.person_pin_outlined,
+                    icon: FluentIcons.person_board_24_regular,
                     color: AppTheme.secondaryColor,
                     delay: 400,
                   ),
@@ -82,7 +84,7 @@ class RoleSelectionScreen extends StatelessWidget {
                     context,
                     title: "Admin",
                     subtitle: "System oversight and management",
-                    icon: Icons.admin_panel_settings_outlined,
+                    icon: FluentIcons.shield_24_regular,
                     color: AppTheme.accentColor,
                     delay: 600,
                   ),
@@ -193,7 +195,7 @@ class RoleSelectionScreen extends StatelessWidget {
                 ),
               ),
               Icon(
-                Icons.arrow_forward_ios,
+                CupertinoIcons.chevron_right,
                 color: Colors.white.withOpacity(0.2),
                 size: 16,
               ),

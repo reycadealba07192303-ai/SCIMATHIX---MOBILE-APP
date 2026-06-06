@@ -7,7 +7,9 @@ import 'package:scimathix/core/theme/app_theme.dart';
 import 'package:scimathix/logic/auth_provider.dart';
 
 class AdminAddLevelScreen extends ConsumerStatefulWidget {
-  const AdminAddLevelScreen({super.key});
+  final String schoolYear;
+  
+  const AdminAddLevelScreen({super.key, required this.schoolYear});
 
   @override
   ConsumerState<AdminAddLevelScreen> createState() => _AdminAddLevelScreenState();
@@ -15,7 +17,7 @@ class AdminAddLevelScreen extends ConsumerStatefulWidget {
 
 class _AdminAddLevelScreenState extends ConsumerState<AdminAddLevelScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
+  String _selectedGrade = 'Grade 7';
   bool _isSubmitting = false;
 
   Future<void> _handleCreate() async {
@@ -24,7 +26,7 @@ class _AdminAddLevelScreenState extends ConsumerState<AdminAddLevelScreen> {
     setState(() => _isSubmitting = true);
     try {
       final apiService = ref.read(apiServiceProvider);
-      await apiService.createLevel(_nameController.text.trim());
+      await apiService.createLevel(_selectedGrade, widget.schoolYear);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -51,7 +53,7 @@ class _AdminAddLevelScreenState extends ConsumerState<AdminAddLevelScreen> {
         backgroundColor: AppTheme.backgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: AppTheme.textColor),
+          icon: Icon(CupertinoIcons.xmark, color: AppTheme.textColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -96,13 +98,16 @@ class _AdminAddLevelScreenState extends ConsumerState<AdminAddLevelScreen> {
               ),
               const SizedBox(height: 48),
               
-              _buildSectionLabel("Level Details"),
+              _buildSectionLabel("SY ${widget.schoolYear} Details"),
               const SizedBox(height: 16),
-              _buildTextField(
-                controller: _nameController,
-                label: "Level Name",
-                hint: "e.g. Grade 10",
+              _buildDropdownField(
+                label: "Grade Level",
                 icon: CupertinoIcons.layers,
+                value: _selectedGrade,
+                items: ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'],
+                onChanged: (val) {
+                  if (val != null) setState(() => _selectedGrade = val);
+                },
               ),
               
               const SizedBox(height: 64),
@@ -128,11 +133,12 @@ class _AdminAddLevelScreenState extends ConsumerState<AdminAddLevelScreen> {
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
+  Widget _buildDropdownField({
     required String label,
-    required String hint,
     required IconData icon,
+    required String value,
+    required List<String> items,
+    required void Function(String?) onChanged,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -140,22 +146,24 @@ class _AdminAddLevelScreenState extends ConsumerState<AdminAddLevelScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.borderColor),
       ),
-      child: TextFormField(
-        controller: controller,
-        style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w500),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w500, color: AppTheme.textColor),
         decoration: InputDecoration(
           labelText: label,
           labelStyle: GoogleFonts.inter(color: AppTheme.subtleText, fontSize: 13),
-          hintText: hint,
-          hintStyle: GoogleFonts.inter(color: AppTheme.subtleText.withOpacity(0.5), fontSize: 14),
           prefixIcon: Icon(icon, size: 20, color: AppTheme.primaryColor),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         ),
-        validator: (value) {
-          if (value == null || value.isEmpty) return "Please enter $label";
-          return null;
-        },
+        dropdownColor: AppTheme.surfaceColor,
+        items: items.map((item) {
+          return DropdownMenuItem(
+            value: item,
+            child: Text(item, style: GoogleFonts.inter(color: AppTheme.textColor)),
+          );
+        }).toList(),
+        onChanged: onChanged,
       ),
     );
   }

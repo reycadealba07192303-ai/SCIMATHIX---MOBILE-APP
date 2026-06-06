@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
 import 'package:scimathix/logic/auth_provider.dart';
+import 'package:scimathix/logic/theme_provider.dart';
 import 'package:scimathix/presentation/screens/teacher/dashboard/teacher_home_view.dart';
 import 'package:scimathix/presentation/screens/teacher/analytics/teacher_analytics_screen.dart';
 import 'package:scimathix/presentation/screens/teacher/profile/teacher_profile_screen.dart';
@@ -19,6 +20,7 @@ class _TeacherDashboardState extends ConsumerState<TeacherDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(themeModeProvider); // Force rebuild on theme change
     final user = ref.watch(authProvider).user;
 
     return Scaffold(
@@ -27,8 +29,8 @@ class _TeacherDashboardState extends ConsumerState<TeacherDashboard> {
         index: _currentIndex,
         children: [
           TeacherHomeView(name: user?.name ?? "Teacher"),
-          const TeacherAnalyticsScreen(),
-          const TeacherProfileScreen(),
+          TeacherAnalyticsScreen(),
+          TeacherProfileScreen(),
         ],
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
@@ -39,7 +41,7 @@ class _TeacherDashboardState extends ConsumerState<TeacherDashboard> {
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.surfaceColor,
-        border: const Border(
+        border: Border(
           top: BorderSide(color: AppTheme.borderColor, width: 1),
         ),
       ),

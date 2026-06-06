@@ -2,12 +2,38 @@ const Level = require('../models/Level');
 const Section = require('../models/Section');
 const Subject = require('../models/Subject');
 const User = require('../models/User');
+const SchoolYear = require('../models/SchoolYear');
+const Notification = require('../models/Notification');
+
+// --- School Year Controllers ---
+
+exports.createSchoolYear = async (req, res) => {
+    try {
+        const sy = await SchoolYear.create(req.body);
+        const io = req.app.get('io');
+        if (io) io.emit('academic_updated', { action: 'school_year_created', schoolYearId: sy._id.toString() });
+        res.status(201).json(sy);
+    } catch (error) {
+        res.status(400).json({ message: error.message });
+    }
+};
+
+exports.getSchoolYears = async (req, res) => {
+    try {
+        const sys = await SchoolYear.find().sort({ year: -1 }); // Descending order
+        res.json(sys);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
 // --- Level Controllers ---
 
 exports.createLevel = async (req, res) => {
     try {
         const level = await Level.create(req.body);
+        const io = req.app.get('io');
+        if (io) io.emit('academic_updated', { action: 'level_created', levelId: level._id.toString() });
         res.status(201).json(level);
     } catch (error) {
         res.status(400).json({ message: error.message });
@@ -16,7 +42,8 @@ exports.createLevel = async (req, res) => {
 
 exports.getLevels = async (req, res) => {
     try {
-        const levels = await Level.find().sort('order');
+        const query = req.query.schoolYear ? { schoolYear: req.query.schoolYear } : {};
+        const levels = await Level.find(query).sort('order');
         res.json(levels);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -28,6 +55,8 @@ exports.getLevels = async (req, res) => {
 exports.createSection = async (req, res) => {
     try {
         const section = await Section.create(req.body);
+        const io = req.app.get('io');
+        if (io) io.emit('academic_updated', { action: 'section_created', sectionId: section._id.toString() });
         res.status(201).json(section);
     } catch (error) {
         res.status(400).json({ message: error.message });
@@ -46,10 +75,26 @@ exports.getSectionsByLevel = async (req, res) => {
 
 exports.getMySections = async (req, res) => {
     try {
-        const sections = await Section.find({ teacher: req.user._id })
-            .populate('level', 'name')
-            .populate('students', 'name email xp');
-        res.json(sections);
+        const teacher = await User.findById(req.user._id)
+            .populate({
+                path: 'handledClasses.section',
+                select: 'name level students',
+                populate: { path: 'level', select: 'name' }
+            })
+            .populate('handledClasses.subject', 'name code category');
+
+        if (!teacher) return res.status(404).json({ message: 'Teacher not found' });
+
+        const handledClasses = teacher.handledClasses
+            .filter(hc => hc.section && hc.subject)
+            .filter(hc => !teacher.specialty || hc.subject.category === teacher.specialty)
+            .map(hc => ({
+                _id: hc._id,
+                section: hc.section,
+                subject: hc.subject,
+            }));
+
+        res.json(handledClasses);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -60,9 +105,44 @@ exports.getSectionDetails = async (req, res) => {
         const section = await Section.findById(req.params.sectionId)
             .populate('teacher', 'name email')
             .populate('students', 'name email')
-            .populate('subjects');
+            .populate('subjects')
+            .populate('level', 'name');
         if (!section) return res.status(404).json({ message: 'Section not found' });
-        res.json(section);
+
+        const teachers = await User.find({
+            role: 'teacher',
+            'handledClasses.section': section._id,
+        }).select('name email specialty handledClasses');
+
+        const subjectCategoryById = {};
+        section.subjects.forEach(subject => {
+            subjectCategoryById[subject._id.toString()] = subject.category;
+        });
+
+        const subjectTeachers = {};
+        teachers.forEach(teacher => {
+            teacher.handledClasses.forEach(hc => {
+                const subjectId = hc.subject ? hc.subject.toString() : null;
+                if (
+                    hc.section &&
+                    hc.subject &&
+                    hc.section.toString() === section._id.toString() &&
+                    (!teacher.specialty || subjectCategoryById[subjectId] === teacher.specialty)
+                ) {
+                    subjectTeachers[subjectId] = {
+                        _id: teacher._id,
+                        name: teacher.name,
+                        email: teacher.email,
+                        specialty: teacher.specialty,
+                    };
+                }
+            });
+        });
+
+        res.json({
+            ...section.toObject(),
+            subjectTeachers,
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -72,30 +152,96 @@ exports.assignTeacherToSection = async (req, res) => {
     try {
         const { sectionId, teacherId, subjectId } = req.body;
         
-        // Add teacher to the section record
-        const section = await Section.findByIdAndUpdate(
-            sectionId,
-            { teacher: teacherId },
-            { new: true }
-        ).populate('teacher', 'name email');
-
-        // Add section and subject to teacher's handledClasses
-        if (subjectId) {
-            const teacher = await User.findById(teacherId);
-            if (teacher) {
-                // Check if already assigned
-                const alreadyAssigned = teacher.handledClasses.some(hc => 
-                    hc.section.toString() === sectionId && hc.subject.toString() === subjectId
-                );
-                
-                if (!alreadyAssigned) {
-                    teacher.handledClasses.push({ section: sectionId, subject: subjectId });
-                    await teacher.save();
-                }
-            }
+        const teacher = await User.findById(teacherId);
+        if (!teacher) {
+            return res.status(404).json({ message: 'Teacher not found' });
+        }
+        
+        if (!teacher.specialty) {
+            return res.status(400).json({ message: 'Teacher must be assigned a role (specialty) before being assigned to a subject.' });
         }
 
-        res.json(section);
+        if (!subjectId) {
+            return res.status(400).json({ message: 'Subject is required when assigning a handled class.' });
+        }
+
+        const [section, subject] = await Promise.all([
+            Section.findById(sectionId),
+            Subject.findById(subjectId),
+        ]);
+
+        if (!section) return res.status(404).json({ message: 'Section not found' });
+        if (!subject) return res.status(404).json({ message: 'Subject not found' });
+
+        if (subject.category !== teacher.specialty) {
+            return res.status(400).json({
+                message: `${teacher.name} is a ${teacher.specialty} teacher and cannot be assigned to ${subject.category}.`
+            });
+        }
+
+        const subjectAlreadyHandled = await User.findOne({
+            _id: { $ne: teacher._id },
+            handledClasses: {
+                $elemMatch: {
+                    section: sectionId,
+                    subject: subjectId,
+                }
+            }
+        });
+
+        if (subjectAlreadyHandled) {
+            return res.status(400).json({ message: `${subject.name} in ${section.name} is already assigned to another teacher.` });
+        }
+
+        const alreadyAssigned = teacher.handledClasses.some(hc => 
+            hc.section &&
+            hc.subject &&
+            hc.section.toString() === sectionId &&
+            hc.subject.toString() === subjectId
+        );
+        
+        if (alreadyAssigned) {
+            return res.status(400).json({ message: `${teacher.name} is already assigned to this subject and section.` });
+        }
+
+        teacher.handledClasses.push({ section: sectionId, subject: subjectId });
+        teacher.subjects.addToSet(subjectId);
+        await Promise.all([
+            teacher.save(),
+            Section.findByIdAndUpdate(sectionId, { $addToSet: { subjects: subjectId } })
+        ]);
+        
+        const notif = await Notification.create({
+            title: 'New Class Assignment',
+            message: `You have been assigned to teach ${subject.name} in ${section.name}.`,
+            target: 'SPECIFIC_USER',
+            recipientId: teacher._id,
+            type: 'system'
+        });
+
+        const populatedTeacher = await User.findById(teacher._id)
+            .populate({
+                path: 'handledClasses.section',
+                select: 'name level students',
+                populate: { path: 'level', select: 'name' }
+            })
+            .populate('handledClasses.subject', 'name code category');
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('new_notification', notif);
+            io.emit('academic_updated', {
+                action: 'handled_class_assigned',
+                teacherId: teacher._id.toString(),
+                sectionId,
+                subjectId,
+            });
+        }
+
+        res.json({
+            message: 'Handled class assigned',
+            handledClasses: populatedTeacher.handledClasses,
+        });
     } catch (error) {
         res.status(400).json({ message: error.message });
     }
@@ -135,6 +281,15 @@ exports.enrollStudentToSection = async (req, res) => {
             { section: sectionId }
         );
 
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('academic_updated', {
+                action: 'students_enrolled',
+                sectionId,
+                studentIds: idsToEnroll,
+            });
+        }
+
         res.json(section);
     } catch (error) {
         res.status(400).json({ message: error.message });
@@ -152,6 +307,15 @@ exports.removeStudentFromSection = async (req, res) => {
 
         await User.findByIdAndUpdate(studentId, { $unset: { section: "" } });
 
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('academic_updated', {
+                action: 'student_removed',
+                sectionId,
+                studentId,
+            });
+        }
+
         res.json({ message: "Student removed from section successfully" });
     } catch (error) {
         res.status(400).json({ message: error.message });
@@ -163,7 +327,13 @@ exports.removeStudentFromSection = async (req, res) => {
 exports.createSubject = async (req, res) => {
     try {
         const { sectionId, ...subjectData } = req.body;
-        const subject = await Subject.create(subjectData);
+        
+        // Check if subject with this code already exists to prevent 11000 duplicate error
+        let subject = await Subject.findOne({ code: subjectData.code });
+        
+        if (!subject) {
+            subject = await Subject.create(subjectData);
+        }
         
         if (sectionId) {
             await Section.findByIdAndUpdate(
@@ -171,12 +341,18 @@ exports.createSubject = async (req, res) => {
                 { $addToSet: { subjects: subject._id } }
             );
         }
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('academic_updated', {
+                action: 'subject_created',
+                subjectId: subject._id.toString(),
+                sectionId,
+            });
+        }
         
         res.status(201).json(subject);
     } catch (error) {
-        if (error.code === 11000) {
-            return res.status(400).json({ message: "A teacher is already assigned to this subject for this section." });
-        }
         res.status(400).json({ message: error.message });
     }
 };
@@ -203,8 +379,29 @@ exports.assignTeacherRole = async (req, res) => {
             return res.status(400).json({ message: 'Invalid specialty role' });
         }
 
+        await teacher.populate('handledClasses.subject');
         teacher.specialty = specialty;
+        teacher.handledClasses = teacher.handledClasses.filter(hc =>
+            !hc.subject || hc.subject.category === specialty
+        );
         await teacher.save();
+
+        const notif = await Notification.create({
+            title: 'Role Assigned',
+            message: `You have been assigned as a ${specialty} teacher.`,
+            target: 'SPECIFIC_USER',
+            recipientId: teacher._id,
+            type: 'system'
+        });
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('new_notification', notif);
+            io.emit('academic_updated', {
+                action: 'teacher_role_assigned',
+                teacherId: teacher._id.toString(),
+                specialty,
+            });
+        }
 
         res.json({ message: `Teacher assigned as ${specialty} teacher`, teacher });
     } catch (error) {
@@ -228,9 +425,13 @@ exports.getTeachers = async (req, res) => {
                 })
                 .populate('handledClasses.subject', 'name code category');
             
+            const activeHandledClasses = populatedTeacher.specialty
+                ? populatedTeacher.handledClasses.filter(hc => !hc.subject || hc.subject.category === populatedTeacher.specialty)
+                : populatedTeacher.handledClasses;
+
             let totalStudents = 0;
             // To keep backwards compatibility with the dashboard UI strings:
-            const handles = populatedTeacher.handledClasses.map(hc => {
+            const handles = activeHandledClasses.map(hc => {
                 if (hc.section) {
                     if (hc.section.students) {
                         totalStudents += hc.section.students.length;
@@ -247,7 +448,8 @@ exports.getTeachers = async (req, res) => {
                 handles: handles,
                 subjectRole: populatedTeacher.specialty,
                 totalStudents: totalStudents,
-                handledClassesPopulated: populatedTeacher.handledClasses.map(hc => ({
+                handledClasses: activeHandledClasses,
+                handledClassesPopulated: activeHandledClasses.map(hc => ({
                     _id: hc._id,
                     section: hc.section ? {
                         _id: hc.section._id,
@@ -299,6 +501,9 @@ exports.approveUser = async (req, res) => {
         user.isApproved = true;
         await user.save();
 
+        const io = req.app.get('io');
+        if (io) io.emit('academic_updated', { action: 'user_approved', userId: user._id.toString() });
+
         res.json({ message: "User approved successfully", user });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -330,6 +535,9 @@ exports.suspendUser = async (req, res) => {
 
         user.isActive = !user.isActive;
         await user.save();
+
+        const io = req.app.get('io');
+        if (io) io.emit('academic_updated', { action: 'user_suspended_toggled', userId: user._id.toString(), isActive: user.isActive });
         
         res.json({ 
             message: user.isActive ? 'User reactivated' : 'User suspended', 
@@ -346,6 +554,10 @@ exports.deleteUser = async (req, res) => {
         const { userId } = req.params;
         const user = await User.findByIdAndDelete(userId);
         if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const io = req.app.get('io');
+        if (io) io.emit('academic_updated', { action: 'user_deleted', userId });
+
         res.json({ message: 'User deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -365,6 +577,9 @@ exports.updateTeacherProfile = async (req, res) => {
         if (email) teacher.email = email;
         await teacher.save();
 
+        const io = req.app.get('io');
+        if (io) io.emit('academic_updated', { action: 'teacher_profile_updated', teacherId: teacher._id.toString() });
+
         res.json({ message: 'Profile updated', teacher });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -383,6 +598,15 @@ exports.removeHandledClass = async (req, res) => {
             hc => hc._id.toString() !== handledClassId
         );
         await teacher.save();
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('academic_updated', {
+                action: 'handled_class_removed',
+                teacherId: teacher._id.toString(),
+                handledClassId,
+            });
+        }
 
         res.json({ message: 'Handled class removed', teacher });
     } catch (error) {

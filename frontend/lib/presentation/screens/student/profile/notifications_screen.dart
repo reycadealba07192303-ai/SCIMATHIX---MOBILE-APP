@@ -13,7 +13,7 @@ class NotificationsScreen extends StatelessWidget {
         backgroundColor: AppTheme.backgroundColor,
         elevation: 0,
         title: Text("Notifications", style: GoogleFonts.inter(color: AppTheme.textColor)),
-        iconTheme: const IconThemeData(color: AppTheme.textColor),
+        iconTheme: IconThemeData(color: AppTheme.textColor),
       ),
       body: Center(
         child: Text("No new notifications.", style: GoogleFonts.inter(color: AppTheme.subtleText)),

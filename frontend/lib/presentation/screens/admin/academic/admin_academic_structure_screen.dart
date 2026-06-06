@@ -5,10 +5,10 @@ import 'package:animate_do/animate_do.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
 import 'package:scimathix/logic/auth_provider.dart';
-import 'package:scimathix/presentation/screens/admin/academic/admin_section_details_screen.dart';
 
-import 'package:scimathix/presentation/screens/admin/academic/admin_add_level_screen.dart';
-import 'package:scimathix/presentation/screens/admin/academic/admin_add_section_screen.dart';
+import 'package:scimathix/presentation/screens/admin/academic/admin_add_school_year_screen.dart';
+import 'package:scimathix/presentation/screens/admin/academic/admin_grade_levels_screen.dart';
+import 'package:scimathix/core/utils/app_logger.dart';
 
 class AdminAcademicStructureScreen extends ConsumerStatefulWidget {
   const AdminAcademicStructureScreen({super.key});
@@ -18,7 +18,7 @@ class AdminAcademicStructureScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminAcademicStructureScreenState extends ConsumerState<AdminAcademicStructureScreen> {
-  List<dynamic> _levels = [];
+  List<dynamic> _schoolYears = [];
   bool _isLoading = true;
 
   @override
@@ -31,27 +31,16 @@ class _AdminAcademicStructureScreenState extends ConsumerState<AdminAcademicStru
     setState(() => _isLoading = true);
     try {
       final apiService = ref.read(apiServiceProvider);
-      final levels = await apiService.getLevels();
+      final years = await apiService.getSchoolYears();
       
-      // For each level, fetch its sections
-      List<Map<String, dynamic>> enrichedLevels = [];
-      for (var level in levels) {
-        final sections = await apiService.getSections(level['_id']);
-        enrichedLevels.add({
-          ...level,
-          "sections": sections,
-          "isOpen": false,
-        });
-      }
-
       if (mounted) {
         setState(() {
-          _levels = enrichedLevels;
+          _schoolYears = years;
           _isLoading = false;
         });
       }
     } catch (e) {
-      print('Fetch Structure Error: $e');
+      AppLogger.error('Fetch Structure', e);
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -64,7 +53,7 @@ class _AdminAcademicStructureScreenState extends ConsumerState<AdminAcademicStru
         backgroundColor: AppTheme.backgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppTheme.textColor),
+          icon: Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -79,7 +68,7 @@ class _AdminAcademicStructureScreenState extends ConsumerState<AdminAcademicStru
         actions: [
           IconButton(
             icon: const Icon(CupertinoIcons.add_circled, color: AppTheme.primaryColor),
-            onPressed: () => _showAddLevelDialog(),
+            onPressed: () => _showAddSchoolYearDialog(),
           ),
         ],
       ),
@@ -87,20 +76,41 @@ class _AdminAcademicStructureScreenState extends ConsumerState<AdminAcademicStru
         ? const Center(child: CircularProgressIndicator())
         : RefreshIndicator(
             onRefresh: _fetchStructure,
-            child: ListView.builder(
+            child: _schoolYears.isEmpty 
+            ? _buildEmptyState()
+            : ListView.builder(
               padding: const EdgeInsets.all(24),
-              itemCount: _levels.length,
+              itemCount: _schoolYears.length,
               itemBuilder: (context, index) {
-                return _buildLevelCard(_levels[index], index);
+                return _buildYearCard(_schoolYears[index], index);
               },
             ),
           ),
     );
   }
 
-  Widget _buildLevelCard(Map<String, dynamic> level, int index) {
-    final sections = level['sections'] as List<dynamic>? ?? [];
-    
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(CupertinoIcons.calendar, size: 64, color: AppTheme.subtleText.withOpacity(0.5)),
+          const SizedBox(height: 16),
+          Text(
+            "No Academic Years Yet",
+            style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: AppTheme.subtleText),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Tap the + icon to add one.",
+            style: GoogleFonts.inter(fontSize: 14, color: AppTheme.subtleText.withOpacity(0.7)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildYearCard(Map<String, dynamic> yearData, int index) {
     return FadeInUp(
       delay: Duration(milliseconds: index * 100),
       child: Container(
@@ -110,134 +120,52 @@ class _AdminAcademicStructureScreenState extends ConsumerState<AdminAcademicStru
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: AppTheme.borderColor),
         ),
-        child: Column(
-          children: [
-            ListTile(
-              onTap: () {
-                setState(() {
-                  level['isOpen'] = !(level['isOpen'] ?? false);
-                });
-              },
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              leading: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(CupertinoIcons.layers, color: AppTheme.primaryColor, size: 20),
-              ),
-              title: Text(
-                level['name'] ?? "Unknown Level",
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                  color: AppTheme.textColor,
+        child: ListTile(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => AdminGradeLevelsScreen(
+                  schoolYear: yearData['year'] ?? "Unknown",
                 ),
               ),
-              subtitle: Text(
-                "${sections.length} Sections",
-                style: GoogleFonts.inter(fontSize: 12, color: AppTheme.subtleText),
-              ),
-              trailing: Icon(
-                (level['isOpen'] ?? false) ? CupertinoIcons.chevron_up : CupertinoIcons.chevron_down,
-                size: 16,
-                color: AppTheme.subtleText,
-              ),
+            ).then((_) => _fetchStructure());
+          },
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          leading: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
-            if (level['isOpen'] ?? false) ...[
-              const Divider(height: 1, color: AppTheme.borderColor),
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    ...sections.map((section) => _buildSectionItem(section, level['name'])).toList(),
-                    const SizedBox(height: 12),
-                    TextButton.icon(
-                      onPressed: () => _showAddSectionDialog(index),
-                      icon: const Icon(CupertinoIcons.add, size: 14),
-                      label: const Text("Add Section"),
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppTheme.primaryColor,
-                        textStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionItem(Map<String, dynamic> section, String levelName) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => AdminSectionDetailsScreen(
-              levelName: levelName,
-              sectionName: section['name'],
-              sectionId: section['_id'],
+            child: const Icon(CupertinoIcons.calendar, color: AppTheme.primaryColor, size: 20),
+          ),
+          title: Text(
+            "SY ${yearData['year'] ?? "Unknown Year"}",
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+              color: AppTheme.textColor,
             ),
           ),
-        ).then((_) => _fetchStructure());
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppTheme.backgroundColor.withOpacity(0.5),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppTheme.borderColor.withOpacity(0.5)),
-        ),
-        child: Row(
-          children: [
-            const Icon(CupertinoIcons.group, size: 16, color: AppTheme.secondaryColor),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                section['name'] ?? "",
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppTheme.textColor,
-                ),
-              ),
-            ),
-            IconButton(
-              icon: const Icon(CupertinoIcons.trash, size: 14, color: Colors.redAccent),
-              onPressed: () {},
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-          ],
+          subtitle: Text(
+            "Tap to manage grade levels & sections",
+            style: GoogleFonts.inter(fontSize: 12, color: AppTheme.subtleText),
+          ),
+          trailing: Icon(
+            CupertinoIcons.chevron_right,
+            size: 16,
+            color: AppTheme.subtleText,
+          ),
         ),
       ),
     );
   }
 
-  void _showAddLevelDialog() {
+  void _showAddSchoolYearDialog() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const AdminAddLevelScreen()),
-    ).then((value) {
-      if (value == true) _fetchStructure();
-    });
-  }
-
-  void _showAddSectionDialog(int levelIndex) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AdminAddSectionScreen(
-          levelId: _levels[levelIndex]['_id'],
-          levelName: _levels[levelIndex]['name'],
-        ),
-      ),
+      MaterialPageRoute(builder: (context) => const AdminAddSchoolYearScreen()),
     ).then((value) {
       if (value == true) _fetchStructure();
     });

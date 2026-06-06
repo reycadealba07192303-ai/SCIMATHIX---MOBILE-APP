@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:scimathix/data/models/user_model.dart';
 import 'package:scimathix/data/services/api_service.dart';
+import 'package:scimathix/core/config/api_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 final apiServiceProvider = Provider((ref) => ApiService());
 
@@ -54,20 +55,25 @@ class AuthNotifier extends Notifier<AuthState> {
         }
 
         final user = UserModel(
-          id: '',
+          id: prefs.getString('userId') ?? '',
           name: prefs.getString('name') ?? 'User', 
           email: firebaseUser.email ?? '', 
           role: role, 
           token: token,
+          xp: prefs.getInt('xp') ?? 0,
+          section: prefs.getString('section'),
           profilePicture: prefs.getString('profilePicture'),
           handledClasses: handledClasses,
         );
         state = state.copyWith(user: user, isLoading: false);
+        // Silently fetch fresh user data (XP, section, etc.) from the backend
+        refreshCurrentUser();
       } else {
         // Firebase session expired, clear saved data
         await prefs.remove('token');
         await prefs.remove('role');
         await prefs.remove('name');
+        await prefs.remove('userId');
         await prefs.remove('profilePicture');
         await prefs.remove('handledClasses');
         state = state.copyWith(isLoading: false);
@@ -119,6 +125,9 @@ class AuthNotifier extends Notifier<AuthState> {
         if (user != null) {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('name', user.name);
+          await prefs.setString('userId', user.id);
+          await prefs.setInt('xp', user.xp);
+          if (user.section != null) await prefs.setString('section', user.section!);
           if (user.profilePicture != null) await prefs.setString('profilePicture', user.profilePicture!);
           if (user.handledClasses != null) await prefs.setString('handledClasses', jsonEncode(user.handledClasses!.map((e) => e.toJson()).toList()));
           state = state.copyWith(user: user, isLoading: false);
@@ -141,6 +150,9 @@ class AuthNotifier extends Notifier<AuthState> {
           if (user != null) {
             final prefs = await SharedPreferences.getInstance();
             await prefs.setString('name', user.name);
+            await prefs.setString('userId', user.id);
+            await prefs.setString('token', user.token);
+            await prefs.setString('role', user.role);
             state = state.copyWith(user: user, isLoading: false);
           } else {
             await firebase_auth.FirebaseAuth.instance.signOut();
@@ -161,6 +173,36 @@ class AuthNotifier extends Notifier<AuthState> {
       final message = e.toString().replaceAll('Exception: ', '');
       state = state.copyWith(isLoading: false, error: message);
     }
+  }
+
+  Future<void> refreshCurrentUser() async {
+    final apiService = ref.read(apiServiceProvider);
+    final refreshedUser = await apiService.getCurrentUser();
+    if (refreshedUser == null) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('name', refreshedUser.name);
+    await prefs.setString('userId', refreshedUser.id);
+    await prefs.setString('role', refreshedUser.role);
+    await prefs.setInt('xp', refreshedUser.xp);
+    if (refreshedUser.section != null) {
+      await prefs.setString('section', refreshedUser.section!);
+    } else {
+      await prefs.remove('section');
+    }
+    if (refreshedUser.profilePicture != null) {
+      await prefs.setString('profilePicture', refreshedUser.profilePicture!);
+    }
+    if (refreshedUser.handledClasses != null) {
+      await prefs.setString(
+        'handledClasses',
+        jsonEncode(refreshedUser.handledClasses!.map((e) => e.toJson()).toList()),
+      );
+    } else {
+      await prefs.remove('handledClasses');
+    }
+
+    state = state.copyWith(user: refreshedUser, isLoading: false);
   }
 
   Future<void> register(String email, String password, String name, String role) async {
@@ -188,6 +230,9 @@ class AuthNotifier extends Notifier<AuthState> {
         if (user != null) {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('name', name);
+          await prefs.setString('userId', user.id);
+          await prefs.setString('token', user.token);
+          await prefs.setString('role', user.role);
           state = state.copyWith(user: user, isLoading: false);
         } else {
           state = state.copyWith(isLoading: false, error: 'Failed to create account on server.');
@@ -209,6 +254,9 @@ class AuthNotifier extends Notifier<AuthState> {
     await prefs.remove('token');
     await prefs.remove('role');
     await prefs.remove('name');
+    await prefs.remove('userId');
+    await prefs.remove('xp');
+    await prefs.remove('section');
     await prefs.remove('profilePicture');
     await prefs.remove('handledClasses');
     state = AuthState();
@@ -216,6 +264,7 @@ class AuthNotifier extends Notifier<AuthState> {
 
   void updateProfilePictureLocally(String filename) async {
     if (state.user != null) {
+      ApiConfig.bustImageCache();
       state = state.copyWith(user: state.user!.copyWith(profilePicture: filename));
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('profilePicture', filename);

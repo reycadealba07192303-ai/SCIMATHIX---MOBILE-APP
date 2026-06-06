@@ -11,7 +11,27 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
-app.use(cors());
+
+// CORS configuration
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['http://localhost:3000', 'http://localhost:5000'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, server-to-server)
+    if (!origin) return callback(null, true);
+    // Allow all localhost origins for Flutter web development
+    if (origin.startsWith('http://localhost:')) {
+      return callback(null, true);
+    }
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
 
 // Routes
 app.use('/api/auth', require('./routes/auth_routes'));
@@ -40,8 +60,9 @@ const { Server } = require('socket.io');
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE"]
+    origin: true, // reflects the origin, effectively allowing all when credentials=true
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
   }
 });
 
@@ -55,11 +76,20 @@ io.on('connection', (socket) => {
   });
 });
 
+server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+        console.error(`Port ${PORT} is already in use. Stop the other Node process or set PORT in .env.`);
+    } else {
+        console.error('Server error:', err);
+    }
+    process.exit(1);
+});
+
 mongoose.connect(MONGO_URI)
     .then(() => {
         console.log('Connected to MongoDB');
-        server.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
+        server.listen(PORT, '0.0.0.0', () => {
+            console.log(`Server is running on http://0.0.0.0:${PORT}`);
         });
     })
     .catch(err => {

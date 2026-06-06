@@ -7,10 +7,15 @@ import 'package:scimathix/core/theme/app_theme.dart';
 import 'package:scimathix/logic/auth_provider.dart';
 import 'package:scimathix/presentation/screens/student/lessons/student_classroom_screen.dart';
 import 'package:scimathix/presentation/screens/student/student_notifications_screen.dart';
+import 'package:scimathix/presentation/screens/student/chat/student_chat_list_screen.dart';
 import 'package:scimathix/presentation/screens/student/student_calendar_screen.dart';
-import 'package:scimathix/presentation/screens/student/quiz/quiz_categories_screen.dart';
 import 'package:scimathix/presentation/screens/student/profile/student_profile_screen.dart';
+import 'package:scimathix/presentation/screens/student/lessons/lesson_details_screen.dart';
+import 'package:scimathix/presentation/screens/student/quiz/quiz_instructions_screen.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:scimathix/logic/data_providers.dart';
+import 'package:scimathix/logic/theme_provider.dart';
+import 'package:scimathix/data/services/socket_service.dart';
 
 class StudentDashboard extends ConsumerStatefulWidget {
   const StudentDashboard({super.key});
@@ -21,9 +26,40 @@ class StudentDashboard extends ConsumerStatefulWidget {
 
 class _StudentDashboardState extends ConsumerState<StudentDashboard> {
   int _currentIndex = 0;
+  late final SocketService _socketService;
+
+  @override
+  void initState() {
+    super.initState();
+    _socketService = ref.read(socketServiceProvider);
+    _socketService.initSocket();
+    _socketService.on('new_notification', _handleRealtimeUpdate);
+    _socketService.on('classroom_updated', _handleRealtimeUpdate);
+    _socketService.on('academic_updated', _handleRealtimeUpdate);
+  }
+
+  void _handleRealtimeUpdate(dynamic data) {
+    if (!mounted) return;
+    ref.invalidate(globalAnnouncementsProvider);
+    ref.invalidate(lessonsProvider);
+    ref.invalidate(quizzesProvider);
+    final sectionId = ref.read(authProvider).user?.section;
+    if (sectionId != null && sectionId.isNotEmpty) {
+      ref.invalidate(sectionDetailsProvider(sectionId));
+    }
+  }
+
+  @override
+  void dispose() {
+    _socketService.off('new_notification', _handleRealtimeUpdate);
+    _socketService.off('classroom_updated', _handleRealtimeUpdate);
+    _socketService.off('academic_updated', _handleRealtimeUpdate);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(themeModeProvider); // Force rebuild on theme change
     final user = ref.watch(authProvider).user;
 
     return Scaffold(
@@ -32,9 +68,9 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
         index: _currentIndex,
         children: [
           _buildHomeView(user),
-          const StudentClassroomScreen(),
-          const QuizCategoriesScreen(),
-          const StudentProfileScreen(),
+          StudentClassroomScreen(),
+          StudentChatListScreen(),
+          StudentProfileScreen(),
         ],
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
@@ -44,6 +80,7 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
   Widget _buildHomeView(dynamic user) {
     final lessonsAsync = ref.watch(lessonsProvider);
     final quizzesAsync = ref.watch(quizzesProvider);
+    final announcementsAsync = ref.watch(globalAnnouncementsProvider);
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -55,7 +92,9 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
             const SizedBox(height: 32),
             _buildProgressSection(user?.xp ?? 0),
             const SizedBox(height: 32),
-            _buildAssignedActivities(lessonsAsync),
+            _buildAnnouncements(announcementsAsync),
+            const SizedBox(height: 32),
+            _buildRecentLessons(lessonsAsync),
             const SizedBox(height: 32),
             _buildUpcomingQuizzes(quizzesAsync),
             const SizedBox(height: 24), // Extra padding at bottom
@@ -100,7 +139,7 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
           Row(
             children: [
               IconButton(
-                icon: const Icon(CupertinoIcons.bell, color: AppTheme.textColor),
+                icon: Icon(CupertinoIcons.bell, color: AppTheme.textColor),
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -144,80 +183,184 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
             ),
           ],
         ),
-        child: Row(
-          children: [
-            // XP Section
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+        child: Builder(
+          builder: (context) {
+            // Dynamic level calculation: every 200 XP = 1 level, minimum Level 1
+            const int xpPerLevel = 200;
+            final int level = xp <= 0 ? 1 : (xp ~/ xpPerLevel) + 1;
+            final int xpInCurrentLevel = xp % xpPerLevel;
+            final double progress = xp <= 0 ? 0.0 : xpInCurrentLevel / xpPerLevel;
+            final int xpNeeded = xpPerLevel - xpInCurrentLevel;
+
+            return Row(
+              children: [
+                // XP Section
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(CupertinoIcons.star_circle_fill, color: AppTheme.accentColor, size: 22),
-                      const SizedBox(width: 8),
+                      Row(
+                        children: [
+                          const Icon(CupertinoIcons.star_circle_fill, color: AppTheme.accentColor, size: 22),
+                          const SizedBox(width: 8),
+                          Text(
+                            "Level $level",
+                            style: GoogleFonts.inter(
+                              color: AppTheme.textColor,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          backgroundColor: AppTheme.borderColor,
+                          valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                          minHeight: 8,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       Text(
-                        "Level 5",
+                        "$xpInCurrentLevel / $xpPerLevel XP to next level",
                         style: GoogleFonts.inter(
-                          color: AppTheme.textColor,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
+                          color: AppTheme.subtleText,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: LinearProgressIndicator(
-                      value: 0.7, // Simulated 70% progress
-                      backgroundColor: AppTheme.borderColor,
-                      valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-                      minHeight: 8,
-                    ),
+                ),
+                const SizedBox(width: 24),
+                // Total XP Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.secondaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.secondaryColor.withOpacity(0.2)),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "$xp / 1000 XP to next level",
-                    style: GoogleFonts.inter(
-                      color: AppTheme.subtleText,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  child: Column(
+                    children: [
+                      const Icon(CupertinoIcons.bolt_fill, color: AppTheme.secondaryColor, size: 24),
+                      const SizedBox(height: 4),
+                      Text(
+                        "$xp XP",
+                        style: GoogleFonts.inter(
+                          color: AppTheme.secondaryColor,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 24),
-            // Daily Streak
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppTheme.secondaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.secondaryColor.withOpacity(0.2)),
-              ),
-              child: Column(
-                children: [
-                  const Icon(CupertinoIcons.flame_fill, color: AppTheme.secondaryColor, size: 24),
-                  const SizedBox(height: 4),
-                  Text(
-                    "7 Days",
-                    style: GoogleFonts.inter(
-                      color: AppTheme.secondaryColor,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildAssignedActivities(AsyncValue<List<dynamic>> lessonsAsync) {
+  Widget _buildAnnouncements(AsyncValue<List<dynamic>> announcementsAsync) {
+    return FadeInUp(
+      delay: const Duration(milliseconds: 300),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Recent Announcements",
+            style: GoogleFonts.inter(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textColor,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 16),
+          announcementsAsync.when(
+            data: (announcements) {
+              if (announcements.isEmpty) {
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.borderColor),
+                  ),
+                  child: Center(
+                    child: Text(
+                      "No recent announcements.",
+                      style: GoogleFonts.inter(color: AppTheme.subtleText),
+                    ),
+                  ),
+                );
+              }
+              // Display the latest announcement
+              final latest = announcements.first;
+              return Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppTheme.primaryColor.withOpacity(0.2)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(CupertinoIcons.speaker_2_fill, color: AppTheme.primaryColor, size: 24),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            latest['title'] ?? 'Announcement',
+                            style: GoogleFonts.inter(
+                              color: AppTheme.textColor,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            latest['message'] ?? '',
+                            style: GoogleFonts.inter(
+                              color: AppTheme.textColor.withOpacity(0.8),
+                              fontSize: 14,
+                              height: 1.4,
+                            ),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (err, stack) => Center(child: Text("Error loading announcements")),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentLessons(AsyncValue<List<dynamic>> lessonsAsync) {
     return FadeInUp(
       delay: const Duration(milliseconds: 400),
       child: Column(
@@ -227,7 +370,7 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                "Assigned Activities",
+                "Recent Lessons",
                 style: GoogleFonts.inter(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -235,12 +378,19 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
                   letterSpacing: -0.5,
                 ),
               ),
-              Text(
-                "See All",
-                style: GoogleFonts.inter(
-                  color: AppTheme.primaryColor,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _currentIndex = 1; // Switch to Classroom tab
+                  });
+                },
+                child: Text(
+                  "See All",
+                  style: GoogleFonts.inter(
+                    color: AppTheme.primaryColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
                 ),
               ),
             ],
@@ -254,7 +404,7 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
                 if (lessons.isEmpty) {
                   return Center(
                     child: Text(
-                      "No assigned activities yet.",
+                      "No recent lessons yet.",
                       style: GoogleFonts.inter(color: AppTheme.subtleText),
                     ),
                   );
@@ -269,12 +419,32 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
                     final subjectName = subjectObj['name'] ?? 'General';
                     final title = lesson['title'] ?? 'Untitled Lesson';
 
-                    return _buildActivityCard(
-                      title: title,
-                      subject: subjectName,
-                      progress: 0.0, // We can track actual progress later
-                      color: index % 2 == 0 ? AppTheme.primaryColor : AppTheme.secondaryColor,
-                      icon: CupertinoIcons.book,
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => LessonDetailsScreen(
+                              lessonTitle: title,
+                              themeColor: index % 2 == 0
+                                  ? AppTheme.primaryColor
+                                  : AppTheme.secondaryColor,
+                              lessonId: lesson['_id'],
+                              content: lesson['content'],
+                              summary: lesson['summary'],
+                              objectives: lesson['objectives'],
+                              fileUrl: lesson['fileUrl'],
+                            ),
+                          ),
+                        );
+                      },
+                      child: _buildActivityCard(
+                        title: title,
+                        subject: subjectName,
+                        progress: 0.0, // We can track actual progress later
+                        color: index % 2 == 0 ? AppTheme.primaryColor : AppTheme.secondaryColor,
+                        icon: CupertinoIcons.book,
+                      ),
                     );
                   },
                 );
@@ -421,13 +591,36 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
               return Column(
                 children: quizzes.take(3).map((quiz) {
                   final title = quiz['title'] ?? 'Untitled Quiz';
+                  final questionsCount = (quiz['questions'] as List?)?.length ?? 10;
+                  final dateRaw = quiz['scheduledDate'] ?? quiz['createdAt'];
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12.0),
-                    child: _buildQuizTile(
-                      title: title,
-                      date: "Pending", // Could format from quiz data if available
-                      questions: 10, // Default if not provided
-                      color: AppTheme.accentColor,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => QuizInstructionsScreen(
+                              quizId: quiz['_id'] ?? '',
+                              quizTitle: title,
+                              timeLimit: quiz['timeLimit'] ?? 15,
+                              questionsCount: questionsCount,
+                              passingScore: quiz['passingScore'] ?? 60,
+                              themeColor: AppTheme.accentColor,
+                              isPractice: quiz['isPractice'] == true,
+                              scheduledDate: quiz['scheduledDate'],
+                              scheduledTime: quiz['scheduledTime'],
+                              endTime: quiz['endTime'],
+                            ),
+                          ),
+                        );
+                      },
+                      child: _buildQuizTile(
+                        title: title,
+                        date: _formatQuizDate(dateRaw),
+                        questions: questionsCount,
+                        color: AppTheme.accentColor,
+                      ),
                     ),
                   );
                 }).toList(),
@@ -439,6 +632,17 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
         ],
       ),
     );
+  }
+
+  String _formatQuizDate(dynamic raw) {
+    if (raw == null) return 'Pending';
+    try {
+      final d = DateTime.parse(raw.toString()).toLocal();
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return '${months[d.month - 1]} ${d.day}, ${d.year}';
+    } catch (_) {
+      return 'Pending';
+    }
   }
 
   Widget _buildQuizTile({
@@ -480,7 +684,7 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Icon(CupertinoIcons.calendar, size: 14, color: AppTheme.subtleText),
+                    Icon(CupertinoIcons.calendar, size: 14, color: AppTheme.subtleText),
                     const SizedBox(width: 4),
                     Text(
                       date,
@@ -491,7 +695,7 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Icon(CupertinoIcons.question_circle, size: 14, color: AppTheme.subtleText),
+                    Icon(CupertinoIcons.question_circle, size: 14, color: AppTheme.subtleText),
                     const SizedBox(width: 4),
                     Text(
                       "$questions Qs",
@@ -506,7 +710,7 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
               ],
             ),
           ),
-          const Icon(CupertinoIcons.chevron_right, color: AppTheme.borderColor, size: 16),
+          Icon(CupertinoIcons.chevron_right, color: AppTheme.borderColor, size: 16),
         ],
       ),
     );
@@ -514,30 +718,60 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
 
   Widget _buildBottomNavigationBar() {
     return Container(
-      decoration: const BoxDecoration(
-        color: AppTheme.surfaceColor,
-        border: Border(top: BorderSide(color: AppTheme.borderColor)),
-      ),
-      child: BottomNavigationBar(
-        backgroundColor: AppTheme.surfaceColor,
-        type: BottomNavigationBarType.fixed,
-        elevation: 0,
-        selectedItemColor: AppTheme.primaryColor,
-        unselectedItemColor: AppTheme.subtleText,
-        selectedLabelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 11),
-        unselectedLabelStyle: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 11),
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(CupertinoIcons.house), activeIcon: Icon(CupertinoIcons.house_fill), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(CupertinoIcons.book), activeIcon: Icon(CupertinoIcons.book_fill), label: 'Lessons'),
-          BottomNavigationBarItem(icon: Icon(CupertinoIcons.pencil_circle), activeIcon: Icon(CupertinoIcons.pencil_circle_fill), label: 'Quizzes'),
-          BottomNavigationBarItem(icon: Icon(CupertinoIcons.person), activeIcon: Icon(CupertinoIcons.person_solid), label: 'Profile'),
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 20, offset: const Offset(0, -5)),
         ],
+      ),
+      child: NavigationBarTheme(
+        data: NavigationBarThemeData(
+          indicatorColor: AppTheme.primaryColor.withOpacity(0.15),
+          labelTextStyle: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.primaryColor);
+            }
+            return GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: AppTheme.subtleText);
+          }),
+          iconTheme: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const IconThemeData(color: AppTheme.primaryColor, size: 22);
+            }
+            return IconThemeData(color: AppTheme.subtleText, size: 22);
+          }),
+        ),
+        child: NavigationBar(
+          height: 65,
+          backgroundColor: AppTheme.surfaceColor,
+          elevation: 0,
+          selectedIndex: _currentIndex,
+          onDestinationSelected: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(FluentIcons.home_24_regular),
+              selectedIcon: Icon(FluentIcons.home_24_filled),
+              label: 'Home',
+            ),
+            NavigationDestination(
+              icon: Icon(FluentIcons.book_open_24_regular),
+              selectedIcon: Icon(FluentIcons.book_open_24_filled),
+              label: 'Classes',
+            ),
+            NavigationDestination(
+              icon: Icon(FluentIcons.chat_24_regular),
+              selectedIcon: Icon(FluentIcons.chat_24_filled),
+              label: 'Chat',
+            ),
+            NavigationDestination(
+              icon: Icon(FluentIcons.person_24_regular),
+              selectedIcon: Icon(FluentIcons.person_24_filled),
+              label: 'Profile',
+            ),
+          ],
+        ),
       ),
     );
   }

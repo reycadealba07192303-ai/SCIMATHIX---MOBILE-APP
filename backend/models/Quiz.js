@@ -26,6 +26,27 @@ const quizSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    isPractice: {
+        type: Boolean,
+        default: false
+    },
+    difficulty: {
+        type: String,
+        enum: ['easy', 'medium', 'hard'],
+        default: 'easy'
+    },
+    scheduledDate: {
+        type: Date,
+        required: false
+    },
+    scheduledTime: {
+        type: String,
+        required: false
+    },
+    endTime: {
+        type: String,
+        required: false
+    },
     createdAt: {
         type: Date,
         default: Date.now

@@ -265,7 +265,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               },
                               activeColor: AppTheme.primaryColor,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                              side: const BorderSide(color: AppTheme.borderColor),
+                              side: BorderSide(color: AppTheme.borderColor),
                             ),
                           ),
                           const SizedBox(width: 8),

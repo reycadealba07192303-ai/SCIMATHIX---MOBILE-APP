@@ -142,7 +142,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         padding: EdgeInsets.zero,
                         alignment: Alignment.centerLeft,
                         onPressed: () => Navigator.pop(context),
-                        icon: const Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor, size: 24),
+                        icon: Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor, size: 24),
                       ),
                     ),
                     Container(
@@ -218,7 +218,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           value: _selectedRole,
                           isExpanded: true,
                           dropdownColor: AppTheme.surfaceColor,
-                          icon: const Icon(CupertinoIcons.chevron_down, color: AppTheme.subtleText, size: 16),
+                          icon: Icon(CupertinoIcons.chevron_down, color: AppTheme.subtleText, size: 16),
                           style: GoogleFonts.inter(
                             color: AppTheme.textColor, 
                             fontWeight: FontWeight.w500,
@@ -229,7 +229,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               value: 'student',
                               child: Row(
                                 children: [
-                                  const Icon(CupertinoIcons.person, color: AppTheme.subtleText, size: 20),
+                                  Icon(CupertinoIcons.person, color: AppTheme.subtleText, size: 20),
                                   const SizedBox(width: 12),
                                   Text("Student", style: GoogleFonts.inter()),
                                 ],
@@ -239,7 +239,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               value: 'teacher',
                               child: Row(
                                 children: [
-                                  const Icon(CupertinoIcons.book, color: AppTheme.subtleText, size: 20),
+                                  Icon(CupertinoIcons.book, color: AppTheme.subtleText, size: 20),
                                   const SizedBox(width: 12),
                                   Text("Teacher", style: GoogleFonts.inter()),
                                 ],
@@ -249,7 +249,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               value: 'admin',
                               child: Row(
                                 children: [
-                                  const Icon(CupertinoIcons.shield, color: AppTheme.subtleText, size: 20),
+                                  Icon(CupertinoIcons.shield, color: AppTheme.subtleText, size: 20),
                                   const SizedBox(width: 12),
                                   Text("Admin", style: GoogleFonts.inter()),
                                 ],

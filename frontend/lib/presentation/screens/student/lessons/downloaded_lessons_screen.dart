@@ -17,7 +17,7 @@ class DownloadedLessonsScreen extends StatelessWidget {
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor, size: 24),
+          icon: Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor, size: 24),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -37,7 +37,7 @@ class DownloadedLessonsScreen extends StatelessWidget {
               color: AppTheme.surfaceColor,
               child: Row(
                 children: [
-                  const Icon(CupertinoIcons.info_circle, size: 16, color: AppTheme.subtleText),
+                  Icon(CupertinoIcons.info_circle, size: 16, color: AppTheme.subtleText),
                   const SizedBox(width: 8),
                   Text(
                     "Available offline. Taking up 145 MB.",

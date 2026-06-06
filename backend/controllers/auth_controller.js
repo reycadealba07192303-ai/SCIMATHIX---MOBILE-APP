@@ -66,7 +66,7 @@ exports.loginUser = async (req, res) => {
             })
             .populate({
                 path: 'handledClasses.subject',
-                select: 'name code'
+                select: 'name code category'
             });
 
         if (user && (await user.comparePassword(password))) {
@@ -79,6 +79,10 @@ exports.loginUser = async (req, res) => {
                 color: 'blue'
             });
 
+            const handledClasses = user.specialty
+                ? user.handledClasses.filter(hc => !hc.subject || hc.subject.category === user.specialty)
+                : user.handledClasses;
+
             res.json({
                 _id: user._id,
                 name: user.name,
@@ -87,7 +91,8 @@ exports.loginUser = async (req, res) => {
                 section: user.section,
                 xp: user.xp,
                 profilePicture: user.profilePicture,
-                handledClasses: user.handledClasses,
+                handledClasses,
+                specialty: user.specialty,
                 token: generateToken(user._id)
             });
         } else {
@@ -102,6 +107,44 @@ exports.loginUser = async (req, res) => {
 
             res.status(401).json({ message: 'Invalid email or password' });
         }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Get current authenticated user
+// @route   GET /api/auth/me
+// @access  Private
+exports.getCurrentUser = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id)
+            .populate({
+                path: 'handledClasses.section',
+                select: 'name level',
+                populate: { path: 'level', select: 'name' }
+            })
+            .populate({
+                path: 'handledClasses.subject',
+                select: 'name code category'
+            });
+
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const handledClasses = user.specialty
+            ? user.handledClasses.filter(hc => !hc.subject || hc.subject.category === user.specialty)
+            : user.handledClasses;
+
+        res.json({
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            section: user.section,
+            xp: user.xp,
+            profilePicture: user.profilePicture,
+            handledClasses,
+            specialty: user.specialty,
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

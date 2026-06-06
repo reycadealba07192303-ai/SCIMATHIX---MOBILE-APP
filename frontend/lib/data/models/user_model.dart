@@ -60,6 +60,7 @@ class UserModel {
   final int xp;
   final String? profilePicture;
   final List<HandledClassModel>? handledClasses;
+  final String? specialty;
 
   UserModel({
     required this.id,
@@ -71,6 +72,7 @@ class UserModel {
     this.xp = 0,
     this.profilePicture,
     this.handledClasses,
+    this.specialty,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -86,10 +88,11 @@ class UserModel {
       handledClasses: (json['handledClasses'] as List<dynamic>?)
           ?.map((e) => HandledClassModel.fromJson(e))
           .toList(),
+      specialty: json['specialty'],
     );
   }
 
-  UserModel copyWith({String? profilePicture, List<HandledClassModel>? handledClasses}) {
+  UserModel copyWith({String? profilePicture, List<HandledClassModel>? handledClasses, String? specialty}) {
     return UserModel(
       id: id,
       name: name,
@@ -100,6 +103,7 @@ class UserModel {
       xp: xp,
       profilePicture: profilePicture ?? this.profilePicture,
       handledClasses: handledClasses ?? this.handledClasses,
+      specialty: specialty ?? this.specialty,
     );
   }
 
@@ -114,6 +118,7 @@ class UserModel {
       'xp': xp,
       'profilePicture': profilePicture,
       'handledClasses': handledClasses?.map((e) => e.toJson()).toList(),
+      'specialty': specialty,
     };
   }
 }

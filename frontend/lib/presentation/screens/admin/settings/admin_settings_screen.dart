@@ -95,7 +95,7 @@ class AdminSettingsScreen extends ConsumerWidget {
             if (isSwitch)
               CupertinoSwitch(value: false, onChanged: (val) {}, activeTrackColor: AppTheme.primaryColor)
             else
-              const Icon(CupertinoIcons.chevron_right, color: AppTheme.borderColor, size: 16),
+              Icon(CupertinoIcons.chevron_right, color: AppTheme.borderColor, size: 16),
           ],
         ),
       ),

@@ -1,9 +1,21 @@
 const mongoose = require('mongoose');
 
 const announcementSchema = new mongoose.Schema({
+    title: {
+        type: String,
+        required: false
+    },
     content: {
         type: String,
         required: true
+    },
+    scheduledDate: {
+        type: Date,
+        required: false
+    },
+    scheduledTime: {
+        type: String,
+        required: false
     },
     teacher: {
         type: mongoose.Schema.Types.ObjectId,
@@ -14,6 +26,11 @@ const announcementSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Section',
         required: true
+    },
+    subject: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Subject',
+        required: false
     },
     createdAt: {
         type: Date,

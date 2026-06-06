@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
+import 'package:scimathix/core/config/api_config.dart';
 import 'package:scimathix/presentation/screens/student/lessons/lesson_viewer_screen.dart';
 
 class LessonDetailsScreen extends StatelessWidget {
@@ -12,6 +14,7 @@ class LessonDetailsScreen extends StatelessWidget {
   final String? content;
   final String? summary;
   final List<dynamic>? objectives;
+  final String? fileUrl;
 
   const LessonDetailsScreen({
     super.key,
@@ -21,6 +24,7 @@ class LessonDetailsScreen extends StatelessWidget {
     this.content,
     this.summary,
     this.objectives,
+    this.fileUrl,
   });
 
   @override
@@ -42,11 +46,11 @@ class LessonDetailsScreen extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         IconButton(
-                          icon: const Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor),
+                          icon: Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor),
                           onPressed: () => Navigator.pop(context),
                         ),
                         IconButton(
-                          icon: const Icon(CupertinoIcons.bookmark, color: AppTheme.textColor),
+                          icon: Icon(CupertinoIcons.bookmark, color: AppTheme.textColor),
                           onPressed: () {},
                         ),
                       ],
@@ -103,7 +107,7 @@ class LessonDetailsScreen extends StatelessWidget {
                     ),
                   ),
                   
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.symmetric(vertical: 24, horizontal: 24),
                     child: Divider(color: AppTheme.borderColor),
                   ),
@@ -159,7 +163,7 @@ class LessonDetailsScreen extends StatelessWidget {
             ),
           ),
           
-          // Bottom Action Button
+          // Bottom Action Buttons
           Positioned(
             bottom: 0,
             left: 0,
@@ -170,7 +174,7 @@ class LessonDetailsScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: AppTheme.backgroundColor,
-                  border: const Border(top: BorderSide(color: AppTheme.borderColor)),
+                  border: Border(top: BorderSide(color: AppTheme.borderColor)),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.02),
@@ -179,40 +183,72 @@ class LessonDetailsScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => LessonViewerScreen(
-                            lessonTitle: lessonTitle,
-                            lessonId: lessonId,
-                            content: content,
-                            summary: summary,
-                            objectives: objectives,
+                child: Row(
+                  children: [
+                    // Download PDF button (only if fileUrl exists)
+                    if (fileUrl != null && fileUrl!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: SizedBox(
+                          height: 54,
+                          child: OutlinedButton(
+                            onPressed: () async {
+                              final fullUrl = '${ApiConfig.serverBaseUrl}$fileUrl';
+                              final uri = Uri.parse(fullUrl);
+                              final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+                              if (!launched && context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Could not open file'), backgroundColor: Colors.redAccent),
+                                );
+                              }
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: themeColor),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Icon(CupertinoIcons.arrow_down_doc, color: themeColor, size: 22),
                           ),
                         ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: themeColor,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
                       ),
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      "Start Learning",
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                    Expanded(
+                      child: SizedBox(
+                        height: 54,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => LessonViewerScreen(
+                                  lessonTitle: lessonTitle,
+                                  lessonId: lessonId,
+                                  content: content,
+                                  summary: summary,
+                                  objectives: objectives,
+                                ),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: themeColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: Text(
+                            "Start Learning",
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
@@ -222,10 +258,11 @@ class LessonDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMetaTag(IconData icon, String text, {Color color = AppTheme.subtleText}) {
+  Widget _buildMetaTag(IconData icon, String text, {Color? color}) {
+    final tagColor = color ?? AppTheme.subtleText;
     return Row(
       children: [
-        Icon(icon, size: 14, color: color),
+        Icon(icon, size: 14, color: tagColor),
         const SizedBox(width: 4),
         Text(
           text,

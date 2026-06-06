@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scimathix/core/theme/app_theme.dart';
 import 'package:scimathix/logic/auth_provider.dart';
 import 'package:scimathix/presentation/screens/admin/academic/admin_teacher_edit_profile_screen.dart';
+import 'package:scimathix/data/services/socket_service.dart';
 class AdminTeacherManagementScreen extends ConsumerStatefulWidget {
   const AdminTeacherManagementScreen({super.key});
 
@@ -21,6 +22,7 @@ class _AdminTeacherManagementScreenState extends ConsumerState<AdminTeacherManag
   final TextEditingController _searchController = TextEditingController();
   
   String _currentTab = "All"; // All, Science, Math
+  late final SocketService _socketService;
 
   @override
   void initState() {
@@ -35,13 +37,21 @@ class _AdminTeacherManagementScreenState extends ConsumerState<AdminTeacherManag
       }
     });
     _searchController.addListener(_applyFilters);
+    _setupSocket();
     _fetchTeachers();
+  }
+
+  void _setupSocket() {
+    _socketService = ref.read(socketServiceProvider);
+    _socketService.initSocket();
+    _socketService.on('academic_updated', (_) => _fetchTeachers());
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     _searchController.dispose();
+    _socketService.off('academic_updated');
     super.dispose();
   }
 
@@ -53,8 +63,8 @@ class _AdminTeacherManagementScreenState extends ConsumerState<AdminTeacherManag
       setState(() {
         _teachers = teachers;
         _isLoading = false;
-        _applyFilters();
       });
+      _applyFilters();
     }
   }
 
@@ -87,7 +97,7 @@ class _AdminTeacherManagementScreenState extends ConsumerState<AdminTeacherManag
         backgroundColor: AppTheme.backgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppTheme.textColor),
+          icon: Icon(CupertinoIcons.arrow_left, color: AppTheme.textColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -225,7 +235,7 @@ class _AdminTeacherManagementScreenState extends ConsumerState<AdminTeacherManag
               ),
               if (handles.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                const Divider(color: AppTheme.borderColor),
+                Divider(color: AppTheme.borderColor),
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -317,7 +327,7 @@ class _AdminTeacherManagementScreenState extends ConsumerState<AdminTeacherManag
       isScrollControlled: true,
       builder: (context) => Container(
         padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppTheme.backgroundColor,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
@@ -445,7 +455,7 @@ class _AdminTeacherManagementScreenState extends ConsumerState<AdminTeacherManag
           maxHeight: MediaQuery.of(context).size.height * 0.7,
         ),
         padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppTheme.backgroundColor,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
@@ -578,7 +588,7 @@ class _AdminTeacherManagementScreenState extends ConsumerState<AdminTeacherManag
                                       ],
                                     ),
                                   ),
-                                  const Icon(CupertinoIcons.chevron_right, color: AppTheme.subtleText, size: 16),
+                                  Icon(CupertinoIcons.chevron_right, color: AppTheme.subtleText, size: 16),
                                 ],
                               ),
                             ),
@@ -621,49 +631,89 @@ class _AdminTeacherManagementScreenState extends ConsumerState<AdminTeacherManag
 
   void _showDeleteConfirmation(Map<String, dynamic> teacher) {
     String confirmationText = '';
-    showCupertinoDialog(
+    showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          return CupertinoAlertDialog(
-            title: const Text("Delete Account"),
+          final canDelete = confirmationText == 'DELETE';
+          return AlertDialog(
+            backgroundColor: AppTheme.surfaceColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Text(
+              "Delete Account",
+              style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: AppTheme.textColor),
+            ),
             content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 8),
-                Text("Are you sure you want to delete ${teacher['name']}'s account? This action cannot be undone."),
+                Text(
+                  "Are you sure you want to delete ${teacher['name']}'s account? This action cannot be undone.",
+                  style: GoogleFonts.inter(color: AppTheme.subtleText, height: 1.4),
+                ),
                 const SizedBox(height: 16),
-                const Text("Type 'DELETE' to confirm:", style: TextStyle(fontWeight: FontWeight.bold)),
+                Text("Type 'DELETE' to confirm:",
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AppTheme.textColor, fontSize: 13)),
                 const SizedBox(height: 8),
-                CupertinoTextField(
+                TextField(
                   onChanged: (value) => setDialogState(() => confirmationText = value),
-                  placeholder: "DELETE",
+                  decoration: InputDecoration(
+                    hintText: "DELETE",
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
                 ),
               ],
             ),
+            actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             actions: [
-              CupertinoDialogAction(
-                child: const Text("Cancel"),
-                onPressed: () => Navigator.pop(context),
-              ),
-              CupertinoDialogAction(
-                isDestructiveAction: true,
-                onPressed: confirmationText == 'DELETE' ? () async {
-                  Navigator.pop(context);
-                  setState(() => _isLoading = true);
-                  final success = await ref.read(apiServiceProvider).deleteUser(teacher['_id']);
-                  if (success) {
-                    _fetchTeachers();
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Teacher deleted.")));
-                  } else {
-                    setState(() => _isLoading = false);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to delete teacher.")));
-                  }
-                } : null,
-                child: const Text("Delete"),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: BorderSide(color: AppTheme.borderColor),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      child: Text("Cancel",
+                          style: GoogleFonts.inter(color: AppTheme.textColor, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: canDelete ? Colors.redAccent : Colors.redAccent.withValues(alpha: 0.4),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: canDelete
+                          ? () async {
+                              Navigator.pop(context);
+                              setState(() => _isLoading = true);
+                              final success = await ref.read(apiServiceProvider).deleteUser(teacher['_id']);
+                              if (!mounted) return;
+                              if (success) {
+                                _fetchTeachers();
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Teacher deleted.")));
+                              } else {
+                                setState(() => _isLoading = false);
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to delete teacher.")));
+                              }
+                            }
+                          : null,
+                      child: Text("Delete",
+                          style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ],
               ),
             ],
           );
-        }
+        },
       ),
     );
   }
@@ -725,7 +775,7 @@ class _AdminTeacherManagementScreenState extends ConsumerState<AdminTeacherManag
               ),
             ),
             const Spacer(),
-            const Icon(CupertinoIcons.chevron_right, color: AppTheme.subtleText, size: 16),
+            Icon(CupertinoIcons.chevron_right, color: AppTheme.subtleText, size: 16),
           ],
         ),
       ),
@@ -733,6 +783,15 @@ class _AdminTeacherManagementScreenState extends ConsumerState<AdminTeacherManag
   }
 
   void _showAssignProcess(Map<String, dynamic> teacher) {
+    if (teacher['subjectRole'] == null || teacher['subjectRole'].toString().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please assign a subject role to the teacher first."),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
     showDialog(
       context: context,
       builder: (context) => _AssignProcessDialog(
@@ -867,7 +926,6 @@ class _AssignProcessDialogState extends ConsumerState<_AssignProcessDialog> {
   // Store full objects so we can auto-generate subject name/code
   Map<String, dynamic>? _selectedLevel;
   Map<String, dynamic>? _selectedSection;
-  String? _selectedRole;
 
   bool _isLoading = true;
   bool _isSubmitting = false;
@@ -1273,7 +1331,7 @@ class _SectionStudentsSheetState extends ConsumerState<_SectionStudentsSheet> {
         maxHeight: MediaQuery.of(context).size.height * 0.75,
       ),
       padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppTheme.backgroundColor,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),

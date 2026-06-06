@@ -1,13 +1,15 @@
+import 'package:scimathix/core/utils/app_logger.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:scimathix/core/config/api_config.dart';
 import 'package:scimathix/data/models/user_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  // Using adb reverse: phone connects via USB, no same-network needed
-  // Run: adb reverse tcp:5000 tcp:5000
-  static const String baseUrl = 'http://localhost:5000/api';
+  static String get baseUrl => ApiConfig.apiBaseUrl;
 
   Future<UserModel?> login(String email, String password) async {
     try {
@@ -34,6 +36,28 @@ class ApiService {
     } catch (e) {
       rethrow;
     }
+  }
+
+  Future<UserModel?> getCurrentUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      if (token == null || token.isEmpty) return null;
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/auth/me'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        data['token'] = token;
+        return UserModel.fromJson(data);
+      }
+    } catch (e) {
+      AppLogger.error('Get Current User', e);
+    }
+    return null;
   }
 
   Future<UserModel?> register({
@@ -76,22 +100,55 @@ class ApiService {
 
   // --- Academic API ---
 
-  Future<List<dynamic>> getLevels() async {
+  Future<List<dynamic>> getLevels([String? schoolYear]) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/academic/levels'));
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final url = schoolYear != null 
+          ? '$baseUrl/academic/levels?schoolYear=$schoolYear'
+          : '$baseUrl/academic/levels';
+      final response = await http.get(Uri.parse(url), headers: {'Authorization': 'Bearer $token'});
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Levels Error: $e');
+      AppLogger.error('Get Levels', e);
     }
     return [];
   }
 
-  Future<List<dynamic>> getSections(String levelId) async {
+  Future<List<dynamic>> getSchoolYears() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/academic/sections/$levelId'));
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.get(Uri.parse('$baseUrl/academic/school-years'), headers: {'Authorization': 'Bearer $token'});
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Sections Error: $e');
+      AppLogger.error('Get School Years', e);
+    }
+    return [];
+  }
+
+  Future<bool> createSchoolYear(String year) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/academic/school-years'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'year': year}),
+      );
+      return response.statusCode == 201;
+    } catch (e) {
+      AppLogger.error('Create School Year', e);
+      return false;
+    }
+  }
+
+  Future<List<dynamic>> getSections(String levelId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.get(Uri.parse('$baseUrl/academic/sections/$levelId'), headers: {'Authorization': 'Bearer $token'});
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (e) {
+      AppLogger.error('Get Sections', e);
     }
     return [];
   }
@@ -106,17 +163,19 @@ class ApiService {
       );
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Teacher Sections Error: $e');
+      AppLogger.error('Get Teacher Sections', e);
     }
     return [];
   }
 
   Future<Map<String, dynamic>?> getSectionDetails(String sectionId) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/academic/sections/details/$sectionId'));
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.get(Uri.parse('$baseUrl/academic/sections/details/$sectionId'), headers: {'Authorization': 'Bearer $token'});
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Section Details Error: $e');
+      AppLogger.error('Get Section Details', e);
     }
     return null;
   }
@@ -138,21 +197,21 @@ class ApiService {
         return data['profilePicture'];
       }
     } catch (e) {
-      print('Upload Profile Picture Error: $e');
+      AppLogger.error('Upload Profile Picture', e);
     }
     return null;
   }
 
-  Future<bool> createLevel(String name) async {
+  Future<bool> createLevel(String name, String schoolYear) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/academic/levels'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'name': name}),
+        body: jsonEncode({'name': name, 'schoolYear': schoolYear}),
       );
       return response.statusCode == 201;
     } catch (e) {
-      print('Create Level Error: $e');
+      AppLogger.error('Create Level', e);
       return false;
     }
   }
@@ -166,7 +225,7 @@ class ApiService {
       );
       return response.statusCode == 201;
     } catch (e) {
-      print('Create Section Error: $e');
+      AppLogger.error('Create Section', e);
       return false;
     }
   }
@@ -174,13 +233,15 @@ class ApiService {
 
   Future<List<dynamic>> getSectionStudents(String sectionId) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/academic/sections/details/$sectionId'));
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.get(Uri.parse('$baseUrl/academic/sections/details/$sectionId'), headers: {'Authorization': 'Bearer $token'});
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['students'] ?? [];
       }
     } catch (e) {
-      print('Get Section Students Error: $e');
+      AppLogger.error('Get Section Students', e);
     }
     return [];
   }
@@ -195,7 +256,7 @@ class ApiService {
       );
       return response.statusCode == 200;
     } catch (e) {
-      print('Enroll Students Error: $e');
+      AppLogger.error('Enroll Students', e);
     }
     return false;
   }
@@ -209,7 +270,7 @@ class ApiService {
       );
       return response.statusCode == 200;
     } catch (e) {
-      print('Remove Student Error: $e');
+      AppLogger.error('Remove Student', e);
     }
     return false;
   }
@@ -224,27 +285,31 @@ class ApiService {
       );
       return response.statusCode == 200;
     } catch (e) {
-      print('Assign Teacher Error: $e');
+      AppLogger.error('Assign Teacher', e);
     }
     return false;
   }
 
   Future<List<dynamic>> getTeachers() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/academic/teachers'));
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.get(Uri.parse('$baseUrl/academic/teachers'), headers: {'Authorization': 'Bearer $token'});
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Teachers Error: $e');
+      AppLogger.error('Get Teachers', e);
     }
     return [];
   }
 
   Future<List<dynamic>> getStudents() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/academic/students'));
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.get(Uri.parse('$baseUrl/academic/students'), headers: {'Authorization': 'Bearer $token'});
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Students Error: $e');
+      AppLogger.error('Get Students', e);
     }
     return [];
   }
@@ -270,7 +335,7 @@ class ApiService {
       );
       return response.statusCode == 201;
     } catch (e) {
-      print('Create User Error: $e');
+      AppLogger.error('Create User', e);
       return false;
     }
   }
@@ -293,7 +358,7 @@ class ApiService {
       );
       return response.statusCode == 200;
     } catch (e) {
-      print('Update User Error: $e');
+      AppLogger.error('Update User', e);
       return false;
     }
   }
@@ -308,7 +373,7 @@ class ApiService {
       );
       return response.statusCode == 200;
     } catch (e) {
-      print('Delete User Error: $e');
+      AppLogger.error('Delete User', e);
       return false;
     }
   }
@@ -329,7 +394,7 @@ class ApiService {
       );
       return response.statusCode == 200;
     } catch (e) {
-      print('Update Teacher Role Error: $e');
+      AppLogger.error('Update Teacher Role', e);
       return false;
     }
   }
@@ -344,7 +409,7 @@ class ApiService {
       );
       return response.statusCode == 200;
     } catch (e) {
-      print('Suspend User Error: $e');
+      AppLogger.error('Suspend User', e);
       return false;
     }
   }
@@ -363,7 +428,7 @@ class ApiService {
       );
       return response.statusCode == 200;
     } catch (e) {
-      print('Update Teacher Profile Error: $e');
+      AppLogger.error('Update Teacher Profile', e);
       return false;
     }
   }
@@ -378,7 +443,7 @@ class ApiService {
       );
       return response.statusCode == 200;
     } catch (e) {
-      print('Remove Handled Class Error: $e');
+      AppLogger.error('Remove Handled Class', e);
       return false;
     }
   }
@@ -405,7 +470,7 @@ class ApiService {
       );
       return response.statusCode == 200;
     } catch (e) {
-      print('Assign Teacher Error: $e');
+      AppLogger.error('Assign Teacher', e);
       return false;
     }
   }
@@ -427,17 +492,19 @@ class ApiService {
       );
       return response.statusCode == 200;
     } catch (e) {
-      print('Enroll Student Error: $e');
+      AppLogger.error('Enroll Student', e);
       return false;
     }
   }
 
   Future<List<dynamic>> getSubjects() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/academic/subjects'));
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.get(Uri.parse('$baseUrl/academic/subjects'), headers: {'Authorization': 'Bearer $token'});
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Subjects Error: $e');
+      AppLogger.error('Get Subjects', e);
     }
     return [];
   }
@@ -460,7 +527,7 @@ class ApiService {
         throw Exception(data['message'] ?? 'Failed to create subject');
       }
     } catch (e) {
-      print('Create Subject Error: $e');
+      AppLogger.error('Create Subject', e);
       rethrow;
     }
   }
@@ -479,7 +546,7 @@ class ApiService {
       );
       return response.statusCode == 200;
     } catch (e) {
-      print('Approve User Error: $e');
+      AppLogger.error('Approve User', e);
     }
     return false;
   }
@@ -487,10 +554,12 @@ class ApiService {
 
   Future<Map<String, dynamic>> getAdminStats() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/academic/stats'));
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.get(Uri.parse('$baseUrl/academic/stats'), headers: {'Authorization': 'Bearer $token'});
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Admin Stats Error: $e');
+      AppLogger.error('Get Admin Stats', e);
     }
     return {
       "studentCount": 0,
@@ -511,7 +580,7 @@ class ApiService {
       );
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Lessons Error: $e');
+      AppLogger.error('Get Lessons', e);
     }
     return [];
   }
@@ -522,6 +591,8 @@ class ApiService {
     required String? content,
     required List<String> sectionIds,
     String? filePath,
+    Uint8List? fileBytes,
+    String? fileName,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -535,7 +606,32 @@ class ApiService {
       if (content != null) request.fields['content'] = content;
       request.fields['sections'] = jsonEncode(sectionIds);
       
-      if (filePath != null) {
+      if (fileBytes != null && fileName != null) {
+        String ext = fileName.split('.').last.toLowerCase();
+        String mimeType = 'application';
+        String mimeSubtype = 'octet-stream';
+        
+        if (ext == 'pdf') {
+          mimeType = 'application';
+          mimeSubtype = 'pdf';
+        } else if (ext == 'png') {
+          mimeType = 'image';
+          mimeSubtype = 'png';
+        } else if (ext == 'jpg' || ext == 'jpeg') {
+          mimeType = 'image';
+          mimeSubtype = 'jpeg';
+        } else if (ext == 'doc' || ext == 'docx') {
+          mimeType = 'application';
+          mimeSubtype = 'msword';
+        }
+
+        request.files.add(http.MultipartFile.fromBytes(
+          'file', 
+          fileBytes, 
+          filename: fileName,
+          contentType: MediaType(mimeType, mimeSubtype)
+        ));
+      } else if (filePath != null) {
         request.files.add(await http.MultipartFile.fromPath('file', filePath));
       }
       
@@ -543,8 +639,73 @@ class ApiService {
       var response = await http.Response.fromStream(streamedResponse);
       
       if (response.statusCode == 201) return jsonDecode(response.body);
+      AppLogger.warning('Upload Lesson Failed [${response.statusCode}]: ${response.body}');
     } catch (e) {
-      print('Upload Lesson Error: $e');
+      AppLogger.error('Upload Lesson', e);
+    }
+    return null;
+  }
+
+  Future<bool> updateOwnProfile({required String name}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.put(
+        Uri.parse('$baseUrl/users/profile'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'name': name}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      AppLogger.error('Update Own Profile', e);
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> uploadProfileImage({
+    String? filePath,
+    Uint8List? fileBytes,
+    String? fileName,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      var request = http.MultipartRequest('PUT', Uri.parse('$baseUrl/users/profile-image'));
+      request.headers['Authorization'] = 'Bearer $token';
+
+      if (fileBytes != null && fileName != null) {
+        String ext = fileName.split('.').last.toLowerCase();
+        String mimeType = 'image';
+        String mimeSubtype = 'jpeg';
+        
+        if (ext == 'png') {
+          mimeSubtype = 'png';
+        }
+
+        request.files.add(http.MultipartFile.fromBytes(
+          'image',
+          fileBytes,
+          filename: fileName,
+          contentType: MediaType(mimeType, mimeSubtype)
+        ));
+      } else if (filePath != null) {
+        request.files.add(await http.MultipartFile.fromPath('image', filePath));
+      }
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        AppLogger.warning('Upload Profile Image Failed: ${response.body}');
+      }
+    } catch (e) {
+      AppLogger.error('Upload Profile Image', e);
     }
     return null;
   }
@@ -561,27 +722,37 @@ class ApiService {
       );
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Quizzes Error: $e');
+      AppLogger.error('Get Quizzes', e);
     }
     return [];
   }
 
-  Future<List<dynamic>> getClassroomFeed(String sectionId) async {
+  Future<List<dynamic>> getClassroomFeed(String sectionId, {String? subjectId}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
+      final uri = Uri.parse('$baseUrl/announcements/feed/$sectionId').replace(
+        queryParameters: subjectId != null ? {'subjectId': subjectId} : null,
+      );
       final response = await http.get(
-        Uri.parse('$baseUrl/announcements/feed/$sectionId'),
+        uri,
         headers: {'Authorization': 'Bearer $token'},
       );
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Classroom Feed Error: $e');
+      AppLogger.error('Get Classroom Feed', e);
     }
     return [];
   }
 
-  Future<void> createAnnouncement(String sectionId, String content) async {
+  Future<void> createAnnouncement(
+    String sectionId,
+    String content, {
+    String? subjectId,
+    String? title,
+    DateTime? scheduledDate,
+    String? scheduledTime,
+  }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
@@ -591,11 +762,188 @@ class ApiService {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json'
         },
-        body: jsonEncode({'sectionId': sectionId, 'content': content}),
+        body: jsonEncode({
+          'sectionId': sectionId,
+          'subjectId': subjectId,
+          'content': content,
+          if (title != null) 'title': title,
+          if (scheduledDate != null)
+            'scheduledDate': scheduledDate.toIso8601String(),
+          if (scheduledTime != null) 'scheduledTime': scheduledTime,
+        }),
       );
     } catch (e) {
-      print('Create Announcement Error: $e');
+      AppLogger.error('Create Announcement', e);
     }
+  }
+
+  Future<List<dynamic>> getCalendarAnnouncements(String sectionId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.get(
+        Uri.parse('$baseUrl/announcements/calendar/$sectionId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (e) {
+      AppLogger.error('Get Calendar Announcements', e);
+    }
+    return [];
+  }
+
+  Future<void> updateAnnouncement(String id, String content) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      await http.put(
+        Uri.parse('$baseUrl/announcements/$id'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json'
+        },
+        body: jsonEncode({'content': content}),
+      );
+    } catch (e) {
+      AppLogger.error('Update Announcement', e);
+    }
+  }
+
+  Future<void> deleteAnnouncement(String id) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      await http.delete(
+        Uri.parse('$baseUrl/announcements/$id'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+    } catch (e) {
+      AppLogger.error('Delete Announcement', e);
+    }
+  }
+
+  Future<Map<String, dynamic>?> generateQuiz({
+    String? lessonId,
+    List<String>? lessonIds,
+    String? title,
+    int count = 10,
+    String? type,
+    List<String>? types,
+    bool isPractice = false,
+    int timeLimit = 0,
+    int? passingScore,
+    String? scheduledDate,
+    String? scheduledTime,
+    String? endTime,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      // Prefer lessonIds if provided, fallback to lessonId for backward compatibility
+      final Map<String, dynamic> body = {
+        'count': count,
+        'title': title,
+        'type': type,
+        'types': types,
+        'isPractice': isPractice,
+        'timeLimit': timeLimit,
+      };
+      if (passingScore != null) {
+        body['passingScore'] = passingScore;
+      }
+      if (scheduledDate != null) body['scheduledDate'] = scheduledDate;
+      if (scheduledTime != null) body['scheduledTime'] = scheduledTime;
+      if (endTime != null) body['endTime'] = endTime;
+
+      if (lessonIds != null && lessonIds.isNotEmpty) {
+        body['lessonIds'] = lessonIds;
+      } else if (lessonId != null) {
+        body['lessonId'] = lessonId;
+      }
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/quizzes/generate'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json'
+        },
+        body: jsonEncode(body),
+      );
+      if (response.statusCode == 201) return jsonDecode(response.body);
+      final data = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+      final message = data is Map && data['message'] != null
+          ? data['message'].toString()
+          : 'Failed to generate quiz (${response.statusCode})';
+      throw Exception(message);
+    } catch (e) {
+      AppLogger.error('Generate Quiz', e);
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getQuiz(String quizId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.get(
+        Uri.parse('$baseUrl/quizzes/$quizId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (e) {
+      AppLogger.error('Get Quiz Detail', e);
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> updateQuiz(String quizId, Map<String, dynamic> body) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.put(
+        Uri.parse('$baseUrl/quizzes/$quizId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (e) {
+      AppLogger.error('Update Quiz', e);
+    }
+    return null;
+  }
+
+  Future<bool> deleteQuiz(String quizId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.delete(
+        Uri.parse('$baseUrl/quizzes/$quizId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      AppLogger.error('Delete Quiz', e);
+    }
+    return false;
+  }
+
+  Future<Map<String, dynamic>?> getQuizSubmissions(String quizId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.get(
+        Uri.parse('$baseUrl/quizzes/$quizId/submissions'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (e) {
+      AppLogger.error('Get Quiz Submissions', e);
+    }
+    return null;
   }
 
   Future<Map<String, dynamic>?> getQuizToTake(String quizId) async {
@@ -608,7 +956,7 @@ class ApiService {
       );
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Quiz Error: $e');
+      AppLogger.error('Get Quiz', e);
     }
     return null;
   }
@@ -632,31 +980,69 @@ class ApiService {
           'timeTaken': timeTaken,
         }),
       );
-      if (response.statusCode == 200) return jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        AppLogger.warning('Submit Quiz Failed with status ${response.statusCode}: ${response.body}');
+      }
     } catch (e) {
-      print('Submit Quiz Error: $e');
+      AppLogger.error('Submit Quiz', e);
     }
     return null;
   }
 
-  Future<List<dynamic>> getLeaderboard() async {
+  Future<Map<String, dynamic>> getStudentStats() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
       final response = await http.get(
-        Uri.parse('$baseUrl/quizzes/leaderboard'),
+        Uri.parse('$baseUrl/analytics/student/stats'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+    } catch (e) {
+      AppLogger.error('Get Student Stats', e);
+    }
+    return {
+      'statistics': {
+        'totalQuizzes': 0,
+        'averageScore': 0,
+        'passRate': 0,
+        'bestScore': 0,
+        'totalXp': 0,
+        'totalTimeSeconds': 0,
+      },
+      'activityHistory': [],
+      'achievements': [],
+    };
+  }
+
+  Future<List<dynamic>> getLeaderboard({String? category, String? sectionId, String? period}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final params = <String, String>{};
+      if (category != null) params['category'] = category;
+      if (sectionId != null) params['section'] = sectionId;
+      if (period != null && period != 'all') params['period'] = period;
+      final uri = Uri.parse('$baseUrl/quizzes/leaderboard').replace(queryParameters: params.isNotEmpty ? params : null);
+      final response = await http.get(
+        uri,
         headers: {'Authorization': 'Bearer $token'},
       );
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Leaderboard Error: $e');
+      AppLogger.error('Get Leaderboard', e);
     }
     return [];
   }
 
   // --- Chat API ---
 
-  Future<Map<String, dynamic>?> sendMessage(String content, String? lessonId) async {
+  Future<Map<String, dynamic>?> sendMessage(String content, String? lessonId,
+      {String? conversationId}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
@@ -669,26 +1055,84 @@ class ApiService {
         body: jsonEncode({
           'content': content,
           'lessonId': lessonId,
+          if (conversationId != null) 'conversationId': conversationId,
         }),
       );
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Send Message Error: $e');
+      AppLogger.error('Send Message', e);
     }
     return null;
   }
 
-  Future<List<dynamic>> getChatHistory(String lessonId) async {
+  Future<List<dynamic>> getChatHistory(String lessonId,
+      {String? conversationId}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
+      final uri = Uri.parse('$baseUrl/chat/$lessonId').replace(
+        queryParameters:
+            conversationId != null ? {'conversationId': conversationId} : null,
+      );
       final response = await http.get(
-        Uri.parse('$baseUrl/chat/$lessonId'),
+        uri,
         headers: {'Authorization': 'Bearer $token'},
       );
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Chat History Error: $e');
+      AppLogger.error('Get Chat History', e);
+    }
+    return [];
+  }
+
+  Future<List<dynamic>> getAiConversations() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.get(
+        Uri.parse('$baseUrl/chat/conversations/list'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (e) {
+      AppLogger.error('Get AI Conversations', e);
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>?> sendDirectMessage(String content, String receiverId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.post(
+        Uri.parse('$baseUrl/chat/direct'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'content': content,
+          'receiverId': receiverId,
+        }),
+      );
+      if (response.statusCode == 201) return jsonDecode(response.body);
+    } catch (e) {
+      AppLogger.error('Send Direct Message', e);
+    }
+    return null;
+  }
+
+  Future<List<dynamic>> getDirectMessageHistory(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.get(
+        Uri.parse('$baseUrl/chat/direct/$userId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (e) {
+      AppLogger.error('Get Direct Message History', e);
     }
     return [];
   }
@@ -705,7 +1149,7 @@ class ApiService {
       );
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Weak Topics Error: $e');
+      AppLogger.error('Get Weak Topics', e);
     }
     return [];
   }
@@ -714,7 +1158,7 @@ class ApiService {
       final response = await http.get(Uri.parse('$baseUrl/logs'));
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Logs Error: $e');
+      AppLogger.error('Get Logs', e);
     }
     return [];
   }
@@ -724,23 +1168,246 @@ class ApiService {
       final response = await http.get(Uri.parse('$baseUrl/notifications?target=$target'));
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Notifications Error: $e');
+      AppLogger.error('Get Notifications', e);
     }
     return [];
   }
 
-  Future<Map<String, dynamic>?> getAdminReports() async {
+  Future<bool> createNotification({
+    required String title,
+    required String message,
+    required String target,
+    String type = 'system',
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.post(
+        Uri.parse('$baseUrl/notifications'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'title': title,
+          'message': message,
+          'target': target,
+          'type': type,
+        }),
+      );
+      return response.statusCode == 201;
+    } catch (e) {
+      AppLogger.error('Create Notification', e);
+      return false;
+    }
+  }
+
+  Future<bool> updateNotification(
+    String id, {
+    String? title,
+    String? message,
+    String? target,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.put(
+        Uri.parse('$baseUrl/notifications/$id'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          if (title != null) 'title': title,
+          if (message != null) 'message': message,
+          if (target != null) 'target': target,
+        }),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      AppLogger.error('Update Notification', e);
+      return false;
+    }
+  }
+
+  Future<bool> deleteNotification(String id) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.delete(
+        Uri.parse('$baseUrl/notifications/$id'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      AppLogger.error('Delete Notification', e);
+      return false;
+    }
+  }
+
+  Future<bool> markNotificationAsRead(String id) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.put(
+        Uri.parse('$baseUrl/notifications/$id/read'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      AppLogger.error('Mark Notification Read', e);
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>> getAdminReports() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    if (token == null || token.isEmpty) {
+      throw Exception('Not logged in. Please sign in again.');
+    }
+    final response = await http.get(
+      Uri.parse('$baseUrl/analytics/admin-reports'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    final body = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+    final message = body is Map && body['message'] != null
+        ? body['message'].toString()
+        : 'Failed to load reports (${response.statusCode})';
+    throw Exception(message);
+  }
+  Future<Map<String, dynamic>> getTeacherReports() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    if (token == null || token.isEmpty) {
+      throw Exception('Not logged in. Please sign in again.');
+    }
+    final response = await http.get(
+      Uri.parse('$baseUrl/analytics/teacher-reports'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    final body = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+    final message = body is Map && body['message'] != null
+        ? body['message'].toString()
+        : 'Failed to load teacher reports (${response.statusCode})';
+    throw Exception(message);
+  }
+
+  Future<List<dynamic>> getTeacherSectionPerformance() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
       final response = await http.get(
-        Uri.parse('$baseUrl/analytics/admin-reports'),
+        Uri.parse('$baseUrl/analytics/teacher/section-performance'),
         headers: {'Authorization': 'Bearer $token'},
       );
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
-      print('Get Admin Reports Error: $e');
+      AppLogger.error('Get Teacher Section Performance', e);
+    }
+    return [];
+  }
+
+  Future<List<dynamic>> getTeacherWeakTopics() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.get(
+        Uri.parse('$baseUrl/analytics/teacher/weak-topics'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (e) {
+      AppLogger.error('Get Teacher Weak Topics', e);
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>> getTeacherMonitoring() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.get(
+        Uri.parse('$baseUrl/analytics/teacher/monitoring'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+    } catch (e) {
+      AppLogger.error('Get Teacher Monitoring', e);
+    }
+    return {
+      'recentActivity': [],
+      'inactiveStudents': [],
+      'completion': {
+        'totalStudents': 0,
+        'activeStudents': 0,
+        'inactiveCount': 0,
+        'completionRate': 0,
+      },
+    };
+  }
+
+  // AI Chat and Mock Quiz
+  Future<Map<String, dynamic>?> getQuizByLesson(String lessonId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.get(
+        Uri.parse('$baseUrl/quizzes/lesson/$lessonId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (e) {
+      AppLogger.error('Get Quiz By Lesson', e);
     }
     return null;
+  }
+
+  // --- AI CHAT ---
+
+  // --- DIRECT MESSAGING ---
+
+  // --- DELETE (CRUD) ---
+
+  Future<bool> deleteLesson(String lessonId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.delete(
+        Uri.parse('$baseUrl/lessons/$lessonId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      AppLogger.error('Delete Lesson', e);
+      return false;
+    }
+  }
+
+  Future<bool> updateLesson(String lessonId, Map<String, dynamic> body) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final response = await http.put(
+        Uri.parse('$baseUrl/lessons/$lessonId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      AppLogger.error('Update Lesson', e);
+      return false;
+    }
   }
 }

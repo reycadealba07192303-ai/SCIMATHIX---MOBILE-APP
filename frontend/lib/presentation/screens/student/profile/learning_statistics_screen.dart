@@ -13,7 +13,7 @@ class LearningStatisticsScreen extends StatelessWidget {
         backgroundColor: AppTheme.backgroundColor,
         elevation: 0,
         title: Text("Learning Statistics", style: GoogleFonts.inter(color: AppTheme.textColor)),
-        iconTheme: const IconThemeData(color: AppTheme.textColor),
+        iconTheme: IconThemeData(color: AppTheme.textColor),
       ),
       body: Center(
         child: Text("Learning Statistics coming soon!", style: GoogleFonts.inter(color: AppTheme.subtleText)),
