@@ -129,9 +129,14 @@ class ApiService {
 
   Future<bool> createSchoolYear(String year) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
       final response = await http.post(
         Uri.parse('$baseUrl/academic/school-years'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({'year': year}),
       );
       return response.statusCode == 201;
@@ -204,9 +209,14 @@ class ApiService {
 
   Future<bool> createLevel(String name, String schoolYear) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
       final response = await http.post(
         Uri.parse('$baseUrl/academic/levels'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({'name': name, 'schoolYear': schoolYear}),
       );
       return response.statusCode == 201;
@@ -218,9 +228,14 @@ class ApiService {
 
   Future<bool> createSection(String name, String levelId) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
       final response = await http.post(
         Uri.parse('$baseUrl/academic/sections'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({'name': name, 'level': levelId}),
       );
       return response.statusCode == 201;
@@ -249,9 +264,14 @@ class ApiService {
 
   Future<bool> enrollStudents(List<String> studentIds, String sectionId) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
       final response = await http.post(
         Uri.parse('$baseUrl/academic/sections/enroll-student'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({'studentIds': studentIds, 'sectionId': sectionId}),
       );
       return response.statusCode == 200;
@@ -263,9 +283,14 @@ class ApiService {
 
   Future<bool> removeStudentFromSection(String studentId, String sectionId) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
       final response = await http.post(
         Uri.parse('$baseUrl/academic/sections/remove-student'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({'studentId': studentId, 'sectionId': sectionId}),
       );
       return response.statusCode == 200;
@@ -278,9 +303,14 @@ class ApiService {
 
   Future<bool> assignTeacher(String teacherId, String sectionId) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
       final response = await http.post(
         Uri.parse('$baseUrl/academic/sections/assign-teacher'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({'teacherId': teacherId, 'sectionId': sectionId}),
       );
       return response.statusCode == 200;
@@ -513,11 +543,16 @@ class ApiService {
 
   Future<Map<String, dynamic>?> createSubject(String name, String code, String category, {String? sectionId}) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
       final body = {'name': name, 'code': code, 'category': category};
       if (sectionId != null) body['sectionId'] = sectionId;
       final response = await http.post(
         Uri.parse('$baseUrl/academic/subjects'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
         body: jsonEncode(body),
       );
       if (response.statusCode == 201) {
